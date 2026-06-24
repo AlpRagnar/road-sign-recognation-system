@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Leaflet base styles (imported here so map components render correctly). */
+@import "leaflet/dist/leaflet.css";
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+}
+
+/* Ensure Leaflet map containers have a height. */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  z-index: 0;
+}
