@@ -1,0 +1,15 @@
+# FastAPI AI wrapper dependencies (kept entirely inside ai-server — NOT added to
+# the Next.js project). Pin loosely; pin exactly for reproducible field machines.
+
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.5
+requests>=2.31
+numpy>=1.24
+opencv-python-headless>=4.8
+tritonclient[http]>=2.40
+
+# Recommended for EXACT parity with the local test pipeline's non_max_suppression /
+# scale_boxes (pulls in torch). If omitted, main.py uses a built-in numpy NMS fallback
+# (YOLO head; verify box layout matches your model).
+ultralytics>=8.1

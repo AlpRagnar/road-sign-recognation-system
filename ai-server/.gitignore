@@ -1,0 +1,8 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local class mapping (keep classes.json.example tracked; the real mapping is local)
+classes.json
