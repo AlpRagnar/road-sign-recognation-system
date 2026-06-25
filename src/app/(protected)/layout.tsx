@@ -15,10 +15,10 @@ export default async function ProtectedLayout({
   if (!profile) redirect("/login");
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen flex-col md:flex-row">
       <PresentationBadge />
       <AppSidebar role={profile.role} email={profile.email} />
-      <main className="flex-1 overflow-y-auto">{children}</main>
+      <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
     </div>
   );
 }
