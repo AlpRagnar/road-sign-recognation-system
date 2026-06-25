@@ -153,6 +153,22 @@ export type SystemLogAction =
   | "ADMIN_AUTH_USER_CREATED"
   | "ADMIN_AUTH_PASSWORD_RESET"
   | "ADMIN_DETECTION_REVIEW_UPDATED"
+  | "ADMIN_STORAGE_BACKFILL"
+  | "ADMIN_STORAGE_CLEANUP"
+  | "ADMIN_STORAGE_RECONCILIATION_STARTED"
+  | "ADMIN_STORAGE_RECONCILIATION_COMPLETED"
+  | "ADMIN_STORAGE_QUARANTINE_UPDATED"
+  | "ADMIN_STORAGE_QUARANTINE_DELETED"
+  | "ADMIN_DAILY_METRICS_SNAPSHOT_CREATED"
+  | "ADMIN_DAILY_METRICS_SNAPSHOT_FAILED"
+  | "CRON_DAILY_METRICS_SNAPSHOT_STARTED"
+  | "CRON_DAILY_METRICS_SNAPSHOT_SUCCEEDED"
+  | "CRON_DAILY_METRICS_SNAPSHOT_FAILED"
+  | "CRON_STORAGE_RECONCILIATION_STARTED"
+  | "CRON_STORAGE_RECONCILIATION_SUCCEEDED"
+  | "CRON_STORAGE_RECONCILIATION_FAILED"
+  | "ADMIN_DEMO_SEEDED"
+  | "ADMIN_DEMO_CLEARED"
   | "ERROR";
 
 export interface SystemLog {
@@ -163,4 +179,27 @@ export interface SystemLog {
   message: string | null;
   metadata: unknown;
   created_at: string;
+}
+
+export interface DailyMetricsSnapshot {
+  snapshot_date: string;
+  total_traffic_signs: number;
+  verified_traffic_signs: number;
+  pending_traffic_signs: number;
+  rejected_traffic_signs: number;
+  duplicate_traffic_signs: number;
+  total_detection_events: number;
+  detections_last_24h: number;
+  low_confidence_events: number;
+  average_detection_confidence: number | null;
+  average_ai_response_time_ms: number | null;
+  active_devices_24h: number;
+  active_sessions: number;
+  ai_request_total: number;
+  ai_request_success: number;
+  ai_request_failed: number;
+  ai_failure_rate_percent: number | null;
+  storage_quarantine_pending: number;
+  created_at: string;
+  updated_at: string;
 }

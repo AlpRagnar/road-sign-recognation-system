@@ -83,6 +83,7 @@ export function DetectionDetailClient({ id }: { id: string }) {
             bbox_y={e.bbox_y}
             bbox_width={e.bbox_width}
             bbox_height={e.bbox_height}
+            refreshRequest={{ kind: "detection_event", id: e.id }}
           />
           {e.image_url && (
             <a

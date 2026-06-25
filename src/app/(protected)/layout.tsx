@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentProfile } from "@/lib/auth";
 import { AppSidebar } from "@/components/AppSidebar";
+import { PresentationBadge } from "@/components/PresentationBadge";
 
 // Auth guard for all protected pages. Middleware already redirects
 // unauthenticated requests; this is the defence-in-depth check that also
@@ -15,6 +16,7 @@ export default async function ProtectedLayout({
 
   return (
     <div className="flex min-h-screen">
+      <PresentationBadge />
       <AppSidebar role={profile.role} email={profile.email} />
       <main className="flex-1 overflow-y-auto">{children}</main>
     </div>

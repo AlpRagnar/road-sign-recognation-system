@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { DetectionImagePreview } from "@/components/DetectionImagePreview";
 import type { TrafficSign } from "@/lib/types/database";
 
 interface LatestEvent {
@@ -71,12 +72,13 @@ export function SignDetailPanel({ signId, onClose }: { signId: string; onClose: 
           <>
             <p className="text-base font-semibold text-slate-900">{s.sign_type}</p>
             {s.representative_image_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={s.representative_image_url}
-                alt={s.sign_type}
-                className="mt-3 h-32 w-full rounded-md object-cover"
-              />
+              <div className="mt-3">
+                <DetectionImagePreview
+                  imageUrl={s.representative_image_url}
+                  alt={s.sign_type}
+                  refreshRequest={{ kind: "traffic_sign", id: s.id }}
+                />
+              </div>
             )}
             <dl className="mt-3 divide-y divide-slate-100">
               <Row label="Latitude" value={s.latitude.toFixed(6)} />

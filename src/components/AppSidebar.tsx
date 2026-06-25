@@ -17,12 +17,16 @@ const NAV: NavItem[] = [
   { href: "/map/signs", label: "Sign Map" },
   { href: "/map/devices", label: "Device Map" },
   { href: "/devices", label: "Devices" },
+  { href: "/presentation", label: "Presentation" },
   { href: "/admin/logs", label: "Detection Logs", adminOnly: true },
   { href: "/admin/detections", label: "Detection Review", adminOnly: true },
   { href: "/admin/review", label: "Sign Review", adminOnly: true },
   { href: "/admin/devices", label: "Admin Devices", adminOnly: true },
   { href: "/admin/users", label: "Admin Users", adminOnly: true },
   { href: "/admin/ai", label: "AI Integration", adminOnly: true },
+  { href: "/admin/analytics", label: "Analytics", adminOnly: true },
+  { href: "/admin/storage", label: "Admin Storage", adminOnly: true },
+  { href: "/admin/demo", label: "Demo Tools", adminOnly: true },
 ];
 
 export function AppSidebar({

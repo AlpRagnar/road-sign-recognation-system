@@ -6,6 +6,11 @@ location-aware, reviewable, map-ready inventory.
 Stack: **Next.js 14 (App Router) · TypeScript · Tailwind CSS · Supabase
 (Auth / Postgres / Storage) · Leaflet + OpenStreetMap**.
 
+> **Presenting this project?** See the [Demo Runbook](docs/DEMO_RUNBOOK.md).
+> Seed realistic demo data from **Admin → Demo Tools** (`/admin/demo`), then walk
+> the guided flow at **`/presentation`** (presentation mode). Demo data is
+> marked and can be cleared without touching real records.
+
 ## Quick start
 
 ```bash
@@ -71,8 +76,10 @@ so you can exercise the whole pipeline without a real model server.
   connectivity **health check** (`GET /api/admin/ai/health`), a model-contract
   **self-test** (`POST /api/admin/ai/self-test` — never creates detection
   records), and an **activity dashboard** (`GET /api/admin/ai/logs`: summary,
-  failure breakdown, filterable recent logs). Full spec:
-  [`docs/AI_MODEL_INTEGRATION.md`](docs/AI_MODEL_INTEGRATION.md).
+  failure breakdown, **time-series**, and a **failure-rate threshold warning**).
+  Analytics are computed by DB-side RPCs (migration `0004_analytics_rpc.sql`,
+  `service_role`-only) with automatic **JS fallback** (a `source` badge shows
+  which). Full spec: [`docs/AI_MODEL_INTEGRATION.md`](docs/AI_MODEL_INTEGRATION.md).
 - **Service-role writes**: all trusted server writes use the service-role key
   inside Route Handlers, after authenticating the caller. RLS protects
   client-side reads.
@@ -116,6 +123,42 @@ so you can exercise the whole pipeline without a real model server.
 - **Limitations**: device admin search matches device name/identifier (not owner
   email). Email delivery / invite links are not wired up — credentials are
   handed over manually for this MVP.
+
+## Operational analytics & daily snapshots
+
+- **Dashboard metrics (DB-side with fallback)**: `/dashboard` KPI cards come from
+  the `admin_detection_dashboard_summary()` RPC (migration `0004`) via a
+  server-only helper (`src/lib/dashboard.ts`), with an automatic JS fallback if
+  the RPC is missing. `DASHBOARD_ANALYTICS_SOURCE` (`auto`|`rpc`|`fallback`,
+  default `auto`) controls this; admins see a small `DB RPC` / `JS fallback`
+  source note. These are non-sensitive system-wide aggregates.
+- **Daily metrics snapshots** (migration `0006_daily_metrics_snapshots.sql`): a
+  `daily_metrics_snapshots` table stores one durable row per day (signs by
+  status, detections, 24h activity, avg confidence/AI time, AI request totals +
+  failure rate, active devices/sessions, quarantine pending) so trends survive
+  log/event pruning. Written only by the service-role RPC
+  `admin_create_daily_metrics_snapshot(target_date)`.
+- **`/admin/analytics`** (admin-only): KPI cards from the latest snapshot,
+  lightweight Tailwind trend bars (detections, signs, AI failure rate, active
+  devices), a snapshot table with date-range filters, and buttons to
+  **Create/refresh today** or **refresh a specific date**.
+  - `POST /api/admin/metrics/daily-snapshot` `{ date? }` — upsert a snapshot.
+  - `GET /api/admin/metrics/daily-snapshots?from=&to=&page=&pageSize=` — paginated
+    rows + ascending trend (default range `DAILY_METRICS_DEFAULT_DAYS`, 30).
+  - Both admin-only; a future scheduled job/cron could call the POST route
+    (currently admin-session protected; add a headless secret later if needed).
+  - Actions are logged (`ADMIN_DAILY_METRICS_SNAPSHOT_CREATED` / `_FAILED`) with
+    safe metadata only (date, source, elapsed, success) — no secrets/raw errors.
+- **Headless cron automation** (secret-protected; see
+  [`docs/CRON_AUTOMATION.md`](docs/CRON_AUTOMATION.md)): `POST /api/cron/daily-metrics-snapshot`,
+  `POST /api/cron/storage-reconciliation`, and `POST /api/cron/daily-maintenance`
+  authenticate with `Authorization: Bearer $CRON_SECRET` (no user session) and
+  reuse the same snapshot RPC / `runReconciliation` as the admin actions. They are
+  toggleable (`CRON_*_ENABLED`) and the reconciliation cron **only records
+  quarantine candidates — it never deletes objects**. `/admin/analytics` shows a
+  **snapshot-coverage gap warning** (`SNAPSHOT_GAP_WARNING_DAYS`) and
+  `/admin/storage` shows **reconciliation run history**
+  (`GET /api/admin/storage/reconciliation-runs`).
 
 ## Map analytics, data quality & export
 
@@ -176,7 +219,49 @@ so you can exercise the whole pipeline without a real model server.
   detail is owner-or-admin; admin lists/sign panels sign only what the caller may
   see. **CSV exports never include image URLs** — they emit `image_available` and
   the object path only. Legacy rows that stored a public URL still work (the path
-  is extracted from the old URL when signing). Known limitation: signed URLs
-  expire, so a long-open page may need a reload to refresh the image.
+  is extracted from the old URL when signing).
+- **Refreshing expired URLs**: `DetectionImagePreview` shows a **Refresh image**
+  button when an image fails to load; it re-signs via `POST /api/images/sign`
+  (`{ kind: "detection_event" | "traffic_sign", id }`) — owner/admin for events,
+  RLS-readable for signs. The endpoint resolves the object path by **entity id**
+  and never signs client-supplied paths.
+- **Legacy backfill**: migration `supabase/migrations/0003_backfill_image_paths.sql`
+  idempotently fills `image_path` / `representative_image_path` from the old URL
+  columns (old columns are kept for compatibility). Admins can also inspect status
+  and run a dry-run/apply backfill from **`/admin/storage`**.
+- **Storage maintenance** (`/admin/storage`, admin-only): backfill status counts,
+  dry-run/apply backfill, and a **conservative, dry-run-first orphan scan** with
+  explicit, capped deletion limited to unreferenced objects under `sessions/`
+  (each path re-verified as unreferenced immediately before removal). Storage
+  objects are never deleted automatically. Admin storage APIs return no signed
+  URLs.
+- **Quarantine-first reconciliation** (recommended, migration `0005`): the
+  `/admin/storage` page can **Run reconciliation scan** (`POST /api/admin/storage/reconcile`)
+  which records unreferenced `sessions/` objects as **pending quarantine
+  candidates** (`storage_quarantine_candidates`) and **never deletes anything**.
+  Admins review candidates (`GET /api/admin/storage/quarantine`), **Ignore** or
+  **Restore** them (`PATCH …/quarantine/[id]`), and can **delete only eligible**
+  pending candidates after a configurable **grace period**
+  (`STORAGE_QUARANTINE_GRACE_DAYS`, default 7) via
+  `POST /api/admin/storage/quarantine/delete` — which re-checks references
+  immediately before removing each object. The reconcile endpoint is admin-only
+  and scheduled-friendly (could later be driven by cron). All actions are logged
+  with safe metadata (counts/ids only — no signed URLs or secrets).
 
-See `ARCHITECTURE.md` and `TASK.md` for the full specification.
+## Documentation
+
+| Doc | Purpose |
+| --- | --- |
+| [`docs/FINAL_SYSTEM_ARCHITECTURE.md`](docs/FINAL_SYSTEM_ARCHITECTURE.md) | End-to-end architecture, data flow, security & scalability. |
+| [`docs/FEATURE_INVENTORY.md`](docs/FEATURE_INVENTORY.md) | Feature groups + full page/API inventory with auth levels. |
+| [`docs/ACADEMIC_REPORT_OUTLINE.md`](docs/ACADEMIC_REPORT_OUTLINE.md) | University report skeleton (what to write per section). |
+| [`docs/PRODUCTION_READINESS_CHECKLIST.md`](docs/PRODUCTION_READINESS_CHECKLIST.md) | Code-done vs ops-config checklist. |
+| [`docs/FINAL_SMOKE_TEST_PLAN.md`](docs/FINAL_SMOKE_TEST_PLAN.md) | Step-by-step pre-delivery smoke tests (manual). |
+| [`docs/E2E_TESTING.md`](docs/E2E_TESTING.md) | Playwright E2E smoke suite: env vars, running, CI. |
+| [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) | Seed data + guided presentation flow. |
+| [`docs/AI_MODEL_INTEGRATION.md`](docs/AI_MODEL_INTEGRATION.md) | AI contract, modes, timeout/retry, observability. |
+| [`docs/CRON_AUTOMATION.md`](docs/CRON_AUTOMATION.md) | Secret-protected cron endpoints & scheduling. |
+
+Supabase setup & migration order: [`supabase/README.md`](supabase/README.md).
+
+See `ARCHITECTURE.md` and `TASK.md` for the original specification.

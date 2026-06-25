@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentProfile, isAdmin } from "@/lib/auth";
+import { getDashboardSummary } from "@/lib/dashboard";
 import { PageHeader } from "@/components/PageHeader";
 import { DashboardMetricCard } from "@/components/DashboardMetricCard";
 
@@ -28,21 +29,11 @@ export default async function DashboardPage() {
   const admin = isAdmin(profile);
   const supabase = createSupabaseServerClient();
 
-  const now = Date.now();
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const dayAgo = new Date(now - 24 * 3600 * 1000).toISOString();
-  const weekAgo = new Date(now - 7 * 24 * 3600 * 1000).toISOString();
-
-  const [totalSigns, todayDetections, activeDevices, activeSessions, last24h, last7d] =
-    await Promise.all([
-      count("traffic_signs"),
-      count("detection_events", (q) => q.gte("created_at", startOfToday.toISOString())),
-      count("devices", (q) => q.eq("status", "active")),
-      count("detection_sessions", (q) => q.eq("status", "active")),
-      count("detection_events", (q) => q.gte("created_at", dayAgo)),
-      count("detection_events", (q) => q.gte("created_at", weekAgo)),
-    ]);
+  // Prefer DB-side summary RPC (migration 0004) with safe JS fallback.
+  const { metrics, source } = await getDashboardSummary();
+  const { totalSigns, todayDetections, activeDevices, activeSessions, last24h, last7d } = metrics;
+  const avgConfidence = metrics.avgConfidence;
+  const avgAiMs = metrics.avgAiMs;
 
   // Verification breakdown (raw detection events).
   const breakdownCounts = await Promise.all(
@@ -55,22 +46,6 @@ export default async function DashboardPage() {
     value: breakdownCounts[i]!,
   }));
   const breakdownMax = Math.max(1, ...breakdown.map((b) => b.value));
-
-  // Averages from a recent window (approximate; avoids server-side aggregates).
-  const { data: recentForAvg } = await supabase
-    .from("detection_events")
-    .select("confidence, ai_response_time_ms")
-    .order("created_at", { ascending: false })
-    .limit(500);
-  const confVals = (recentForAvg ?? [])
-    .map((r) => r.confidence)
-    .filter((c): c is number => c != null);
-  const aiVals = (recentForAvg ?? [])
-    .map((r) => r.ai_response_time_ms)
-    .filter((c): c is number => c != null);
-  const avgConfidence =
-    confVals.length > 0 ? confVals.reduce((a, b) => a + b, 0) / confVals.length : null;
-  const avgAiMs = aiVals.length > 0 ? aiVals.reduce((a, b) => a + b, 0) / aiVals.length : null;
 
   // Top detected sign types (from the optimized inventory).
   const { data: signRows } = await supabase
@@ -119,12 +94,12 @@ export default async function DashboardPage() {
           <DashboardMetricCard
             label="Avg confidence"
             value={avgConfidence != null ? `${(avgConfidence * 100).toFixed(0)}%` : "—"}
-            hint="Recent 500 events"
+            hint={source === "rpc" ? "All events" : "Recent 500 events"}
           />
           <DashboardMetricCard
             label="Avg AI time"
             value={avgAiMs != null ? `${avgAiMs.toFixed(0)} ms` : "—"}
-            hint="Recent 500 events"
+            hint={source === "rpc" ? "All events" : "Recent 500 events"}
           />
         </div>
 
@@ -203,7 +178,8 @@ export default async function DashboardPage() {
 
         {admin && (
           <p className="text-xs text-slate-400">
-            You are signed in as an admin — admin pages are available in the sidebar.
+            You are signed in as an admin — admin pages are available in the sidebar. Summary
+            metrics source: <span className="font-medium">{source === "rpc" ? "DB RPC" : "JS fallback"}</span>.
           </p>
         )}
       </div>

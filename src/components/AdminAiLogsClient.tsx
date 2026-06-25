@@ -18,6 +18,23 @@ interface Summary {
 
 type Breakdown = Record<string, number>;
 
+interface TimeSeriesBucket {
+  bucketStart: string;
+  total: number;
+  success: number;
+  failed: number;
+  timeout: number;
+  invalid: number;
+  mock: number;
+  failureRatePct: number;
+  avgElapsedMs: number | null;
+}
+
+interface Threshold {
+  failureRateWarningPercent: number;
+  exceeded: boolean;
+}
+
 interface LogRow {
   id: string;
   created_at: string;
@@ -71,6 +88,9 @@ export function AdminAiLogsClient() {
 
   const [summary, setSummary] = useState<Summary | null>(null);
   const [breakdown, setBreakdown] = useState<Breakdown>({});
+  const [timeSeries, setTimeSeries] = useState<TimeSeriesBucket[]>([]);
+  const [threshold, setThreshold] = useState<Threshold | null>(null);
+  const [source, setSource] = useState<"rpc" | "fallback" | null>(null);
   const [rows, setRows] = useState<LogRow[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -88,7 +108,10 @@ export function AdminAiLogsClient() {
       if (!json.ok) throw new Error(json.error || "Failed to load");
       setSummary(json.data.summary);
       setBreakdown(json.data.breakdown);
-      setRows(json.data.items);
+      setTimeSeries(json.data.timeSeries ?? []);
+      setThreshold(json.data.threshold ?? null);
+      setSource(json.data.source ?? null);
+      setRows(json.data.rows ?? json.data.items ?? []);
       setTotal(json.data.total);
       setTotalPages(json.data.totalPages);
     } catch (err) {
@@ -103,6 +126,9 @@ export function AdminAiLogsClient() {
   }, [load]);
 
   const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : "—");
+  const externalAttempts = summary
+    ? summary.success + summary.failure + summary.timeout + summary.invalid
+    : 0;
 
   return (
     <div className="space-y-4">
@@ -127,17 +153,78 @@ export function AdminAiLogsClient() {
         >
           Refresh
         </button>
+        {source && (
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+              source === "rpc" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"
+            }`}
+            title={
+              source === "rpc"
+                ? "Computed by database RPC (migration 0004)"
+                : "Computed in JS — apply migration 0004 for DB-side analytics"
+            }
+          >
+            source: {source === "rpc" ? "DB RPC" : "JS fallback"}
+          </span>
+        )}
         {error && <span className="text-sm text-red-600">{error}</span>}
       </div>
+
+      {/* Failure-rate threshold warning */}
+      {summary && threshold && (
+        <div
+          className={`rounded-lg px-4 py-3 text-sm ring-1 ${
+            externalAttempts === 0
+              ? "bg-slate-50 text-slate-600 ring-slate-200"
+              : threshold.exceeded
+                ? "bg-red-50 text-red-800 ring-red-200"
+                : "bg-green-50 text-green-800 ring-green-200"
+          }`}
+        >
+          {externalAttempts === 0 ? (
+            <span>No production AI requests in this window — nothing to evaluate.</span>
+          ) : threshold.exceeded ? (
+            <span>
+              <strong>Warning:</strong> failure rate is {summary.failureRatePct}% over{" "}
+              {externalAttempts} external attempt(s) — at or above the{" "}
+              {threshold.failureRateWarningPercent}% threshold. Check the failure breakdown and
+              recent logs below.
+            </span>
+          ) : (
+            <span>
+              <strong>Healthy:</strong> failure rate is {summary.failureRatePct}% over{" "}
+              {externalAttempts} external attempt(s) — below the{" "}
+              {threshold.failureRateWarningPercent}% threshold.
+            </span>
+          )}
+        </div>
+      )}
 
       {summary && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <Stat label="Total requests" value={summary.total} />
           <Stat label="Succeeded" value={summary.success} />
-          <Stat label="Failed" value={summary.failure + summary.timeout + summary.invalid} hint={`${summary.timeout} timeout · ${summary.invalid} invalid`} />
+          <Stat
+            label="Failed"
+            value={summary.failure + summary.timeout + summary.invalid}
+            hint={`${summary.timeout} timeout · ${summary.invalid} invalid`}
+          />
           <Stat label="Mock used" value={summary.mockUsed} />
           <Stat label="Avg elapsed" value={summary.avgElapsedMs != null ? `${summary.avgElapsedMs} ms` : "—"} />
           <Stat label="Failure rate" value={`${summary.failureRatePct}%`} hint="of external attempts" />
+        </div>
+      )}
+
+      {/* Time-series visualization (div bars) */}
+      {timeSeries.length > 0 && (
+        <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-900">Request volume & failure rate</h3>
+            <span className="text-xs text-slate-400">
+              {timeSeries.length} buckets · failed portion shaded
+            </span>
+          </div>
+          <TimeSeriesChart data={timeSeries} />
         </div>
       )}
 
@@ -146,8 +233,7 @@ export function AdminAiLogsClient() {
           <span>Latest success: {fmt(summary.latestSuccessAt)}</span>
           <span>Latest failure: {fmt(summary.latestFailureAt)}</span>
           <span className="ml-auto">
-            Failure breakdown:{" "}
-            {CATEGORIES.map((c) => `${c} ${breakdown[c] ?? 0}`).join(" · ")}
+            Failure breakdown: {CATEGORIES.map((c) => `${c} ${breakdown[c] ?? 0}`).join(" · ")}
           </span>
         </div>
       )}
@@ -235,6 +321,40 @@ export function AdminAiLogsClient() {
           setPage(1);
         }}
       />
+    </div>
+  );
+}
+
+// Compact Tailwind/div bar chart: bar height = total requests, shaded portion
+// = failed requests; a faint line of failure-rate % labels on hover via title.
+function TimeSeriesChart({ data }: { data: TimeSeriesBucket[] }) {
+  const max = Math.max(1, ...data.map((d) => d.total));
+  return (
+    <div className="flex h-32 items-end gap-0.5">
+      {data.map((b) => {
+        const failed = b.timeout + b.invalid + b.failed;
+        const totalH = (b.total / max) * 100;
+        const failedH = b.total > 0 ? (failed / b.total) * totalH : 0;
+        const label = `${new Date(b.bucketStart).toLocaleString()}\n${b.total} req · ${failed} failed · ${b.failureRatePct}% · ${b.mock} mock`;
+        return (
+          <div
+            key={b.bucketStart}
+            title={label}
+            className="group relative flex flex-1 flex-col justify-end"
+            style={{ minWidth: 2 }}
+          >
+            <div
+              className="w-full rounded-t bg-slate-300"
+              style={{ height: `${totalH}%` }}
+            >
+              <div
+                className="w-full rounded-t bg-red-400"
+                style={{ height: `${b.total > 0 ? (failedH / totalH) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

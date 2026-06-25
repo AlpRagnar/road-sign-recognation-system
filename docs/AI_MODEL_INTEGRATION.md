@@ -187,6 +187,18 @@ The `/admin/ai` page also offers a **self-test** and an **activity dashboard**.
   breakdown by category (config/timeout/network/http/validation/unknown), and a
   filterable, paginated recent-logs table. All metadata is sanitized — no API
   keys, bearer tokens, request headers, signed URLs, or full URLs (hostname only).
+- **DB-side analytics + time-series + alerts** (migration `0004_analytics_rpc.sql`):
+  the summary, failure breakdown, and a zero-filled **time-series** are computed
+  by Postgres RPCs (`admin_ai_activity_summary`, `admin_ai_failure_breakdown`,
+  `admin_ai_timeseries`) called server-side with the service-role client. The
+  RPCs are `EXECUTE`-granted to `service_role` only (revoked from public), so
+  clients cannot call them directly. If the migration is not applied, the API
+  transparently **falls back** to JS aggregation and the dashboard shows a
+  `source: JS fallback` badge (vs `DB RPC`). `/admin/ai` also renders a
+  **failure-rate threshold** panel — healthy / warning / no-data — controlled by
+  `AI_FAILURE_RATE_WARNING_PERCENT` (default 20), with bucket size
+  `AI_TIMESERIES_BUCKET_MINUTES` (default 60). Self-test logs are excluded from
+  production request totals; `ai_response_raw` is never included in analytics.
 
 ## 8. Local mock-mode testing
 

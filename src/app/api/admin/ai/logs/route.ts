@@ -1,13 +1,16 @@
 import { NextRequest } from "next/server";
 import { getAuthedContext, jsonError, jsonOk } from "@/lib/api";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { env } from "@/lib/env";
 import { parsePageParams, paginate } from "@/lib/pagination";
 import {
   AI_LOG_ACTIONS,
   type AiTimeWindow,
   type RawLogRow,
-  summarizeAiLogs,
+  getAiAnalyticsViaJs,
+  getAiAnalyticsViaRpc,
   toAiLogRow,
+  windowToHours,
   windowToStartIso,
 } from "@/lib/ai/observability";
 
@@ -19,8 +22,14 @@ function parseWindow(v: string | null): AiTimeWindow {
   return v === "1h" || v === "7d" ? v : "24h";
 }
 
-// GET /api/admin/ai/logs?window=&action=&category=&page=&pageSize=
-// Admin-only AI observability: activity summary, failure breakdown, recent logs.
+function clampInt(raw: string | null, fallback: number, min: number, max: number): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(n)));
+}
+
+// GET /api/admin/ai/logs?window=&action=&category=&page=&pageSize=&bucketMinutes=&failureThresholdPercent=
+// Admin-only AI observability: summary, breakdown, time-series, recent logs.
 export async function GET(req: NextRequest) {
   const ctx = await getAuthedContext();
   if (!ctx) return jsonError("Unauthenticated", 401);
@@ -29,22 +38,43 @@ export async function GET(req: NextRequest) {
   const admin = createSupabaseAdminClient();
   const sp = req.nextUrl.searchParams;
   const window = parseWindow(sp.get("window"));
+  const windowHours = windowToHours(window);
   const startIso = windowToStartIso(window);
   const params = parsePageParams(sp);
 
-  // 1) Window-wide set for summary + breakdown (unfiltered by action/category).
-  const { data: summaryData, error: sErr } = await admin
-    .from("system_logs")
-    .select(SELECT)
-    .in("action_type", AI_LOG_ACTIONS)
-    .gte("created_at", startIso)
-    .order("created_at", { ascending: false })
-    .limit(5000);
-  if (sErr) return jsonError(sErr.message, 500);
+  const bucketMinutes = clampInt(
+    sp.get("bucketMinutes"),
+    env.aiTimeseriesBucketMinutes(),
+    5,
+    1440,
+  );
+  const failureThresholdPercent = clampInt(
+    sp.get("failureThresholdPercent"),
+    env.aiFailureWarnPct(),
+    1,
+    100,
+  );
 
-  const { summary, breakdown } = summarizeAiLogs((summaryData ?? []) as unknown as RawLogRow[]);
+  // Prefer DB-side RPC analytics; fall back to JS aggregation if unavailable
+  // (e.g. migration 0004 not applied yet).
+  let analytics = await getAiAnalyticsViaRpc(admin, windowHours, bucketMinutes);
+  if (!analytics) {
+    const { data: summaryData, error: sErr } = await admin
+      .from("system_logs")
+      .select(SELECT)
+      .in("action_type", AI_LOG_ACTIONS)
+      .gte("created_at", startIso)
+      .order("created_at", { ascending: false })
+      .limit(5000);
+    if (sErr) return jsonError(sErr.message, 500);
+    analytics = getAiAnalyticsViaJs(
+      (summaryData ?? []) as unknown as RawLogRow[],
+      windowHours,
+      bucketMinutes,
+    );
+  }
 
-  // 2) Paginated, filterable table rows.
+  // Paginated, filterable table rows.
   let q = admin
     .from("system_logs")
     .select(SELECT, { count: "exact" })
@@ -54,7 +84,6 @@ export async function GET(req: NextRequest) {
   const category = sp.get("category");
   const action = sp.get("action");
   if (category) {
-    // Category is derived from action_type (+ metadata.category for failures).
     if (category === "validation") q = q.eq("action_type", "AI_RESPONSE_INVALID");
     else if (category === "timeout") q = q.eq("action_type", "AI_REQUEST_TIMEOUT");
     else if (["config", "network", "http"].includes(category)) {
@@ -73,10 +102,19 @@ export async function GET(req: NextRequest) {
 
   const items = ((rows ?? []) as unknown as RawLogRow[]).map(toAiLogRow);
 
+  const { summary } = analytics;
+  const externalAttempts = summary.success + summary.failure + summary.timeout + summary.invalid;
+  const exceeded = externalAttempts > 0 && summary.failureRatePct >= failureThresholdPercent;
+
   return jsonOk({
     window,
+    bucketMinutes,
     summary,
-    breakdown,
+    breakdown: analytics.breakdown,
+    timeSeries: analytics.timeSeries,
+    source: analytics.source,
+    threshold: { failureRateWarningPercent: failureThresholdPercent, exceeded },
+    rows: items,
     ...paginate(items, params, count ?? 0),
   });
 }
