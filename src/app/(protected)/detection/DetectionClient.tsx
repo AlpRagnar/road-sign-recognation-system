@@ -7,10 +7,12 @@ import { CameraCapturePanel } from "@/components/CameraCapturePanel";
 import { LocationStatusPanel } from "@/components/LocationStatusPanel";
 import { DetectionSessionControls } from "@/components/DetectionSessionControls";
 import { DeviceSelectPanel } from "@/components/DeviceSelectPanel";
+import { DetectionResultCard } from "@/components/DetectionResultCard";
 import {
-  DetectionResultCard,
-  type DetectionResult,
-} from "@/components/DetectionResultCard";
+  normalizeFrameDetections,
+  MAX_LIVE_RESULTS,
+  type LiveDetection,
+} from "@/lib/detection/live-results";
 import type { Device } from "@/lib/types/database";
 
 export function DetectionClient() {
@@ -23,7 +25,7 @@ export function DetectionClient() {
   const [framesSent, setFramesSent] = useState(0);
   const [duration, setDuration] = useState(0);
   const [lastFrameAt, setLastFrameAt] = useState<number | null>(null);
-  const [results, setResults] = useState<DetectionResult[]>([]);
+  const [results, setResults] = useState<LiveDetection[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [usedMock, setUsedMock] = useState(false);
 
@@ -35,7 +37,10 @@ export function DetectionClient() {
   const deviceRef = useRef<string | null>(null);
   const captureTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const durationTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Single-flight guard: at most one frame upload/inference in flight at a time.
   const inFlight = useRef(false);
+  // Aborts the in-flight request when the session stops or the page unmounts.
+  const abortRef = useRef<AbortController | null>(null);
 
   // Request camera permission on mount so the preview is visible before start.
   useEffect(() => {
@@ -66,35 +71,69 @@ export function DetectionClient() {
   }, []);
 
   const sendFrame = useCallback(async () => {
+    // Single-flight: if a request is still in flight, skip this interval tick
+    // entirely (no growing queue). AI can take longer than the capture interval.
     if (inFlight.current || !sessionRef.current) return;
     const dataUrl = camera.captureFrame();
     if (!dataUrl) return;
 
+    // Snapshot the session so a response arriving after Stop/restart is ignored.
+    const sessionId = sessionRef.current;
+    const controller = new AbortController();
+    abortRef.current = controller;
     inFlight.current = true;
     const g = geoLatest.current;
+
+    // True once the session is no longer the one this request was started for.
+    const isStale = () => sessionRef.current !== sessionId;
+
     try {
-      const res = await fetch("/api/detection/frame", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: sessionRef.current,
-          deviceId: deviceRef.current,
-          imageBase64: dataUrl,
-          latitude: g.latitude,
-          longitude: g.longitude,
-          gpsAccuracy: g.accuracy,
-          heading: g.heading,
-          speed: g.speed,
-          capturedAt: new Date().toISOString(),
-        }),
-      });
-      const json = await res.json();
+      let res: Response;
+      try {
+        res = await fetch("/api/detection/frame", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            sessionId,
+            deviceId: deviceRef.current,
+            imageBase64: dataUrl,
+            latitude: g.latitude,
+            longitude: g.longitude,
+            gpsAccuracy: g.accuracy,
+            heading: g.heading,
+            speed: g.speed,
+            capturedAt: new Date().toISOString(),
+          }),
+        });
+      } catch (err) {
+        // An intentional abort (Stop pressed) or a late/stale request is ignored.
+        if (controller.signal.aborted || isStale()) return;
+        setError("Frame upload failed. Check your connection; the capture loop is still running.");
+        return;
+      }
+
+      if (isStale()) return;
+
+      let json: { ok?: boolean; error?: string; category?: string; data?: Record<string, unknown> };
+      try {
+        json = await res.json();
+      } catch {
+        if (isStale()) return;
+        setError("Response parsing failed. The frame reached the server but the reply was unreadable.");
+        return;
+      }
+
+      // A response that arrived after the session stopped must not touch state.
+      if (isStale()) return;
+
+      // The frame round-trip completed: count it BEFORE any optional display
+      // work so a rendering/parsing problem can never stall the counter.
       setFramesSent((n) => n + 1);
       setLastFrameAt(Date.now());
 
-      if (!res.ok || !json.ok) {
-        // Category-aware, non-crashing message. The capture loop keeps running.
-        const category = json.category as string | undefined;
+      if (!res.ok || !json?.ok) {
+        const category = json?.category;
         const friendly =
           category === "timeout"
             ? "AI request timed out. The frame was uploaded but no detection was saved."
@@ -103,38 +142,28 @@ export function DetectionClient() {
               : category === "config"
                 ? "AI model is not configured. Set AI_MODEL_API_URL or use mock mode."
                 : category === "http" || category === "network"
-                  ? "AI model request failed. The frame was uploaded but no detection was saved."
-                  : json.error || `Frame failed (${res.status})`;
+                  ? "AI request failed. The frame was uploaded but no detection was saved."
+                  : json?.error || `Frame failed (${res.status})`;
         setError(friendly);
         return;
       }
+
       setError(null);
-      setUsedMock(Boolean(json.data.usedMock));
-      const newResults: DetectionResult[] = (json.data.detections ?? []).map(
-        (d: {
-          id: string;
-          className: string | null;
-          confidence: number | null;
-          validationStatus: string;
-          imageUrl?: string | null;
-          bbox?: { x: number | null; y: number | null; width: number | null; height: number | null } | null;
-        }) => ({
-          id: d.id,
-          className: d.className,
-          confidence: d.confidence,
-          validationStatus: d.validationStatus,
-          imageUrl: d.imageUrl ?? json.data.imageUrl ?? null,
-          bbox: d.bbox ?? null,
-          at: Date.now(),
-        }),
-      );
-      if (newResults.length > 0) {
-        setResults((prev) => [...newResults, ...prev].slice(0, 20));
+      setUsedMock(Boolean(json.data?.usedMock));
+
+      // Optional, fully-guarded display processing. Per-item normalization means
+      // one malformed detection never discards its valid siblings or throws.
+      try {
+        const newResults = normalizeFrameDetections(json.data, Date.now());
+        if (newResults.length > 0) {
+          setResults((prev) => [...newResults, ...prev].slice(0, MAX_LIVE_RESULTS));
+        }
+      } catch {
+        // A counted, successful frame must never be undone by a display error.
       }
-    } catch (err) {
-      setError((err as Error).message);
     } finally {
       inFlight.current = false;
+      if (abortRef.current === controller) abortRef.current = null;
     }
   }, [camera, geoLatest]);
 
@@ -180,6 +209,12 @@ export function DetectionClient() {
     durationTimer.current = null;
 
     const sessionId = sessionRef.current;
+    // Clear the session ref first so any in-flight/late response is ignored,
+    // then abort the current request so it can't update the stopped session.
+    sessionRef.current = null;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    inFlight.current = false;
     setRunning(false);
 
     if (sessionId) {
@@ -189,13 +224,15 @@ export function DetectionClient() {
         body: JSON.stringify({ sessionId }),
       }).catch(() => {});
     }
-    sessionRef.current = null;
     camera.stop();
   }, [camera]);
 
-  // Clean up timers on unmount.
+  // Clean up timers + any in-flight request + media resources on unmount.
   useEffect(() => {
     return () => {
+      sessionRef.current = null;
+      abortRef.current?.abort();
+      abortRef.current = null;
       if (captureTimer.current) clearInterval(captureTimer.current);
       if (durationTimer.current) clearInterval(durationTimer.current);
     };
@@ -243,7 +280,7 @@ export function DetectionClient() {
               <p className="text-sm text-slate-400">No detections yet this session.</p>
             )}
             {results.map((r) => (
-              <DetectionResultCard key={r.id} result={r} />
+              <DetectionResultCard key={r.key} result={r} />
             ))}
           </div>
         </div>

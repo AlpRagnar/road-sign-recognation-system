@@ -125,6 +125,8 @@ export function DetectionImagePreview({
         ref={imgRef}
         src={src}
         alt={alt}
+        loading="lazy"
+        decoding="async"
         className="block h-auto w-full"
         onLoad={(e) => {
           const el = e.currentTarget;

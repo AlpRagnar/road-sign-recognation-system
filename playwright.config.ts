@@ -31,6 +31,16 @@ export default defineConfig({
         },
       },
     },
+    {
+      // iOS-Safari (WebKit) engine — the engine that produced the original
+      // "The string did not match the expected pattern." DOMException. Scoped to
+      // the pure live-results normalization/URL spec (which is exactly the bug
+      // surface). The auth-dependent mobile integration spec runs on chromium
+      // because Supabase SSR cookie auth is unreliable under Playwright WebKit.
+      name: "webkit",
+      testMatch: /live-results\.spec\.ts/,
+      use: { ...devices["iPhone 13"] },
+    },
   ],
   // When E2E_BASE_URL is provided we assume the server is already running.
   webServer: process.env.E2E_BASE_URL
