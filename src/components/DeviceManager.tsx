@@ -22,7 +22,7 @@ const EMPTY_FORM: FormState = {
   status: "active",
 };
 
-export function DeviceManager() {
+export function DeviceManager({ isAdmin = false }: { isAdmin?: boolean }) {
   const [devices, setDevices] = useState<DeviceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +62,12 @@ export function DeviceManager() {
         body: JSON.stringify({
           device_name: form.device_name,
           device_type: form.device_type,
-          ...(isEdit ? { status: form.status } : { device_identifier: form.device_identifier }),
+          // Device status is admin-only; only send it when the actor is an admin.
+          ...(isEdit
+            ? isAdmin
+              ? { status: form.status }
+              : {}
+            : { device_identifier: form.device_identifier }),
         }),
       });
       const json = await res.json();
@@ -152,7 +157,7 @@ export function DeviceManager() {
                   placeholder="Auto-generated if left blank"
                 />
               </div>
-            ) : (
+            ) : isAdmin ? (
               <div>
                 <label className="block text-xs font-medium text-slate-600">Status</label>
                 <select
@@ -164,7 +169,7 @@ export function DeviceManager() {
                   <option value="inactive">inactive</option>
                 </select>
               </div>
-            )}
+            ) : null}
           </div>
           <div className="mt-4 flex gap-2">
             <button
@@ -248,7 +253,7 @@ export function DeviceManager() {
                       >
                         Edit
                       </button>
-                      {d.status === "active" && (
+                      {isAdmin && d.status === "active" && (
                         <button
                           onClick={() => deactivate(d)}
                           className="ml-3 text-xs text-red-600 underline hover:text-red-700"

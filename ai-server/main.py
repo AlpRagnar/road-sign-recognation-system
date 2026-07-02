@@ -17,10 +17,13 @@ from __future__ import annotations
 
 import hmac
 import json
+import logging
 import os
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger("ai_wrapper")
 
 from fastapi import FastAPI, Header, Request
 from fastapi.responses import JSONResponse
@@ -57,16 +60,36 @@ CLASSES_PATH = Path(__file__).with_name("classes.json")
 
 
 def _load_classes() -> Dict[str, str]:
+    """Load the friendly class map at startup.
+
+    Missing or malformed mappings must never prevent the wrapper from booting or
+    break inference — inference falls back to `Sign {id}`. Problems are surfaced
+    as a safe warning that never leaks the absolute path or any secret.
+    """
+    if not CLASSES_PATH.exists():
+        logger.warning(
+            "class map (%s) not found; falling back to 'Sign {id}' names",
+            CLASSES_PATH.name,
+        )
+        return {}
     try:
-        if CLASSES_PATH.exists():
-            with open(CLASSES_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, dict):
-                return {str(k): str(v) for k, v in data.items()}
+        with open(CLASSES_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
     except Exception:
-        # A malformed mapping must never break inference; fall back to defaults.
-        pass
-    return {}
+        logger.warning(
+            "class map (%s) could not be parsed; falling back to 'Sign {id}' names",
+            CLASSES_PATH.name,
+        )
+        return {}
+    if not isinstance(data, dict) or not data:
+        logger.warning(
+            "class map (%s) is empty or malformed; falling back to 'Sign {id}' names",
+            CLASSES_PATH.name,
+        )
+        return {}
+    mapping = {str(k): str(v) for k, v in data.items()}
+    logger.info("Loaded %d traffic-sign class names from %s", len(mapping), CLASSES_PATH.name)
+    return mapping
 
 
 CLASS_MAP: Dict[str, str] = _load_classes()

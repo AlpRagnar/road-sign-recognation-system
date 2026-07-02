@@ -73,11 +73,6 @@ function LoginForm() {
             {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
-
-        <p className="mt-4 text-xs text-slate-400">
-          Create users in the Supabase dashboard (Authentication → Add user). See
-          <code className="mx-1">supabase/README.md</code>.
-        </p>
       </div>
     </main>
   );

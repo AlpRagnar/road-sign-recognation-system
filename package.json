@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "gen:classes": "node scripts/generate-traffic-sign-class-map.mjs",
+    "gen:classes:check": "node scripts/generate-traffic-sign-class-map.mjs --check",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

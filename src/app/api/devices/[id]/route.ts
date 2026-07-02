@@ -43,6 +43,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     update.device_type = body.device_type;
   }
   if (body.status !== undefined) {
+    // Device active/inactive status is admin-only. A field user (owner) may edit
+    // name/type but must not activate/deactivate a device, even via a crafted
+    // request. Admins manage status on the Admin → Devices page.
+    if (ctx.profile.role !== "admin") {
+      return jsonError("Only an admin can change device status", 403);
+    }
     if (!isValidDeviceStatus(body.status)) return jsonError("Invalid status");
     update.status = body.status;
   }
@@ -68,15 +74,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // DELETE /api/devices/[id] — soft-deactivate (status='inactive') to preserve
-// historical detection references. Owner only.
+// historical detection references. Admin-only: device active/inactive status is
+// an admin-controlled field (a field user must not be able to deactivate a
+// device, even their own, via a crafted request).
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const ctx = await getAuthedContext();
   if (!ctx) return jsonError("Unauthenticated", 401);
+  if (ctx.profile.role !== "admin") {
+    return jsonError("Only an admin can change device status", 403);
+  }
 
   const admin = createSupabaseAdminClient();
-  const { device, owned } = await loadOwnedDevice(admin, params.id, ctx.profile.id);
+  const { device } = await loadOwnedDevice(admin, params.id, ctx.profile.id);
   if (!device) return jsonError("Device not found", 404);
-  if (!owned) return jsonError("Forbidden", 403);
 
   const { data: updated, error } = await admin
     .from("devices")

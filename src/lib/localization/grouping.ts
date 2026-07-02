@@ -39,6 +39,118 @@ function weightedAverage(
   return acc / weightSum;
 }
 
+type ObsWithEvent = {
+  detection_events: {
+    latitude: number | null;
+    longitude: number | null;
+    gps_accuracy: number | null;
+    confidence: number | null;
+    created_at: string | null;
+  } | null;
+};
+
+/**
+ * Recomputes a traffic sign's aggregate fields (location, confidence, counts,
+ * timestamps, auto-verification) from its CURRENT observations, using the same
+ * weighting/auto-verify rules as {@link groupDetectionIntoSign}.
+ *
+ * Returns the number of remaining observations. When it returns 0 the caller
+ * should delete the sign (this function does not delete it). Manual review
+ * decisions (manually_verified/rejected/duplicate) are never overridden.
+ */
+export async function recomputeSignAggregate(
+  admin: SupabaseClient,
+  signId: string,
+): Promise<{ remainingObservations: number }> {
+  const { data: sign } = await admin
+    .from("traffic_signs")
+    .select("*")
+    .eq("id", signId)
+    .maybeSingle();
+  if (!sign) return { remainingObservations: 0 };
+  const current = sign as TrafficSign;
+
+  const { data: observations } = await admin
+    .from("traffic_sign_observations")
+    .select("*, detection_events(latitude, longitude, gps_accuracy, confidence, created_at)")
+    .eq("traffic_sign_id", signId);
+
+  const obsRows = (observations ?? []) as unknown as ObsWithEvent[];
+  if (obsRows.length === 0) {
+    return { remainingObservations: 0 };
+  }
+
+  const usable = obsRows
+    .map((o) => o.detection_events)
+    .filter((e): e is NonNullable<ObsWithEvent["detection_events"]> =>
+      e != null && e.latitude != null && e.longitude != null,
+    );
+
+  const latPoints = usable.map((e) => ({
+    value: e.latitude!,
+    confidence: e.confidence,
+    accuracy: e.gps_accuracy,
+  }));
+  const lonPoints = usable.map((e) => ({
+    value: e.longitude!,
+    confidence: e.confidence,
+    accuracy: e.gps_accuracy,
+  }));
+
+  const newLat = usable.length > 0 ? weightedAverage(latPoints) : current.latitude;
+  const newLon = usable.length > 0 ? weightedAverage(lonPoints) : current.longitude;
+
+  const confValues = usable
+    .map((e) => e.confidence)
+    .filter((c): c is number => c != null);
+  const avgConfidence =
+    confValues.length > 0
+      ? confValues.reduce((s, c) => s + c, 0) / confValues.length
+      : current.confidence_score;
+
+  const times = usable
+    .map((e) => e.created_at)
+    .filter((t): t is string => typeof t === "string");
+  const firstDetected =
+    times.length > 0
+      ? times.reduce((a, b) => (a < b ? a : b))
+      : current.first_detected_at;
+  const lastDetected =
+    times.length > 0
+      ? times.reduce((a, b) => (a > b ? a : b))
+      : current.last_detected_at;
+
+  // Never override a human decision; only (re)evaluate the auto rule otherwise.
+  let verificationStatus = current.verification_status;
+  const isManual =
+    verificationStatus === "manually_verified" ||
+    verificationStatus === "rejected" ||
+    verificationStatus === "duplicate";
+  if (!isManual) {
+    verificationStatus =
+      obsRows.length >= AUTO_VERIFY_MIN_OBSERVATIONS &&
+      (avgConfidence ?? 0) > AUTO_VERIFY_MIN_AVG_CONFIDENCE
+        ? "auto_verified"
+        : "pending";
+  }
+
+  await admin
+    .from("traffic_signs")
+    .update({
+      latitude: newLat,
+      longitude: newLon,
+      confidence_score: avgConfidence,
+      detection_count: obsRows.length,
+      first_detected_at: firstDetected,
+      last_detected_at: lastDetected,
+      verification_status: verificationStatus,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", signId);
+
+  return { remainingObservations: obsRows.length };
+}
+
 /**
  * Groups a freshly-saved detection event into the optimized `traffic_signs`
  * inventory (see ARCHITECTURE.md §10).

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentProfile, isAdmin } from "@/lib/auth";
 import { getDashboardSummary } from "@/lib/dashboard";
+import { getTrafficSignDisplayName } from "@/lib/traffic-sign-classes";
 import { PageHeader } from "@/components/PageHeader";
 import { DashboardMetricCard } from "@/components/DashboardMetricCard";
 
@@ -64,7 +65,7 @@ export default async function DashboardPage() {
 
   const { data: recent } = await supabase
     .from("detection_events")
-    .select("id, detected_class_name, confidence, created_at, validation_status")
+    .select("id, detected_class_id, detected_class_name, confidence, created_at, validation_status")
     .order("created_at", { ascending: false })
     .limit(8);
 
@@ -134,10 +135,12 @@ export default async function DashboardPage() {
               {topTypes.length === 0 && (
                 <p className="text-sm text-slate-400">No traffic signs yet.</p>
               )}
-              {topTypes.map((t) => (
+              {topTypes.map((t) => {
+                const label = getTrafficSignDisplayName(null, t.sign_type);
+                return (
                 <div key={t.sign_type} className="flex items-center gap-3 text-sm">
-                  <span className="w-36 shrink-0 truncate text-slate-600" title={t.sign_type}>
-                    {t.sign_type}
+                  <span className="w-36 shrink-0 truncate text-slate-600" title={label}>
+                    {label}
                   </span>
                   <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
                     <div
@@ -147,7 +150,8 @@ export default async function DashboardPage() {
                   </div>
                   <span className="w-10 text-right text-slate-700">{t.total}</span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -164,7 +168,11 @@ export default async function DashboardPage() {
             )}
             {(recent ?? []).map((r) => (
               <div key={r.id} className="flex items-center justify-between px-5 py-3 text-sm">
-                <span className="font-medium text-slate-800">{r.detected_class_name ?? "—"}</span>
+                <span className="font-medium text-slate-800">
+                  {r.detected_class_name || r.detected_class_id != null
+                    ? getTrafficSignDisplayName(r.detected_class_id, r.detected_class_name)
+                    : "—"}
+                </span>
                 <span className="text-slate-500">
                   {r.confidence != null ? `${(r.confidence * 100).toFixed(0)}%` : "—"}
                 </span>

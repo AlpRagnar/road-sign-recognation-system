@@ -13,6 +13,7 @@ import L from "leaflet";
 import { ensureLeafletIcons } from "@/lib/leaflet-icon";
 import { cellSizeForZoom, gridCluster } from "@/lib/cluster";
 import { SignDetailPanel } from "@/components/SignDetailPanel";
+import { getTrafficSignDisplayName } from "@/lib/traffic-sign-classes";
 import type { TrafficSign } from "@/lib/types/database";
 
 ensureLeafletIcons();
@@ -174,7 +175,7 @@ export function TrafficSignMap() {
           <option value="">All sign types</option>
           {signTypes.map((t) => (
             <option key={t} value={t}>
-              {t}
+              {getTrafficSignDisplayName(null, t)}
             </option>
           ))}
         </select>

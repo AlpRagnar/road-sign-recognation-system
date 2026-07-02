@@ -6,6 +6,7 @@ import { writeSystemLog } from "@/lib/logging";
 import { runDetection } from "@/lib/ai/client";
 import { buildAiRequest } from "@/lib/ai/contract";
 import { createSignedFrameUrl } from "@/lib/storage/signed-urls";
+import { getTrafficSignDisplayName } from "@/lib/traffic-sign-classes";
 import { groupDetectionIntoSign } from "@/lib/localization/grouping";
 import type { DetectionEvent, DetectionSession } from "@/lib/types/database";
 
@@ -112,10 +113,12 @@ export async function POST(req: NextRequest) {
     await admin
       .from("devices")
       .update({
+        // Update last-known position only. Device active/inactive status is an
+        // admin-controlled field and must not be flipped by a field user's
+        // frame upload.
         last_latitude: body.latitude,
         last_longitude: body.longitude,
         last_seen_at: capturedAt,
-        status: "active",
         updated_at: new Date().toISOString(),
       })
       .eq("id", deviceId);
@@ -194,7 +197,9 @@ export async function POST(req: NextRequest) {
       .insert({
         ...baseRow,
         detected_class_id: det.class_id,
-        detected_class_name: det.class_name,
+        // Store the friendly display name (never a "Sign N" placeholder or raw
+        // canonical label), so the inventory groups by and shows real names.
+        detected_class_name: getTrafficSignDisplayName(det.class_id, det.class_name),
         confidence: det.confidence,
         bbox_x: det.bbox?.x ?? null,
         bbox_y: det.bbox?.y ?? null,

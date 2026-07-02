@@ -3,6 +3,7 @@ import { getAuthedContext, jsonError } from "@/lib/api";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { toCsv, csvResponse } from "@/lib/csv";
 import { extractStoragePathFromKnownValue } from "@/lib/storage/signed-urls";
+import { getTrafficSignDisplayName } from "@/lib/traffic-sign-classes";
 
 // Columns fetched from the DB.
 // Note: full raw AI JSON (ai_response_raw) is intentionally NOT exported.
@@ -11,6 +12,7 @@ const SELECT_COLUMNS = [
   "session_id",
   "user_id",
   "device_id",
+  "detected_class_id",
   "detected_class_name",
   "confidence",
   "latitude",
@@ -32,7 +34,9 @@ const OUTPUT_COLUMNS = [
   "session_id",
   "user_id",
   "device_id",
+  "detected_class_id",
   "detected_class_name",
+  "class_display_name",
   "confidence",
   "latitude",
   "longitude",
@@ -78,7 +82,15 @@ export async function GET(req: NextRequest) {
     const path =
       (r.image_path as string | null) ??
       extractStoragePathFromKnownValue(r.image_url as string | null);
-    return { ...r, image_path: path ?? "", image_available: path ? "true" : "false" };
+    return {
+      ...r,
+      class_display_name: getTrafficSignDisplayName(
+        r.detected_class_id as number | null,
+        r.detected_class_name as string | null,
+      ),
+      image_path: path ?? "",
+      image_available: path ? "true" : "false",
+    };
   });
 
   const csv = toCsv(OUTPUT_COLUMNS, rows);

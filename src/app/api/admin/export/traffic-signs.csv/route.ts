@@ -3,6 +3,7 @@ import { getAuthedContext, jsonError } from "@/lib/api";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { toCsv, csvResponse } from "@/lib/csv";
 import { extractStoragePathFromKnownValue } from "@/lib/storage/signed-urls";
+import { getTrafficSignDisplayName } from "@/lib/traffic-sign-classes";
 
 const SELECT_COLUMNS = [
   "id",
@@ -22,6 +23,7 @@ const SELECT_COLUMNS = [
 const OUTPUT_COLUMNS = [
   "id",
   "sign_type",
+  "sign_display_name",
   "latitude",
   "longitude",
   "confidence_score",
@@ -65,6 +67,7 @@ export async function GET(req: NextRequest) {
       extractStoragePathFromKnownValue(r.representative_image_url as string | null);
     return {
       ...r,
+      sign_display_name: getTrafficSignDisplayName(null, r.sign_type as string | null),
       representative_image_path: path ?? "",
       image_available: path ? "true" : "false",
     };

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { PaginationBar } from "@/components/PaginationBar";
+import { DeleteFrameDialog } from "@/components/DeleteFrameDialog";
+import { getTrafficSignDisplayName } from "@/lib/traffic-sign-classes";
 import type { DetectionEvent, ValidationStatus } from "@/lib/types/database";
 
 type Row = DetectionEvent & {
@@ -32,7 +34,9 @@ export function AdminDetectionsClient() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -95,6 +99,9 @@ export function AdminDetectionsClient() {
   return (
     <div className="space-y-4">
       {error && <p className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
+      {notice && (
+        <p className="rounded-md bg-green-50 px-4 py-2 text-sm text-green-700">{notice}</p>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <input
@@ -161,7 +168,9 @@ export function AdminDetectionsClient() {
                     )}
                   </td>
                   <td className="px-3 py-2 font-medium text-slate-800">
-                    {e.detected_class_name ?? "—"}
+                    {e.detected_class_name || e.detected_class_id != null
+                      ? getTrafficSignDisplayName(e.detected_class_id, e.detected_class_name)
+                      : "—"}
                   </td>
                   <td className="px-3 py-2">
                     {e.confidence != null ? `${(e.confidence * 100).toFixed(0)}%` : "—"}
@@ -216,6 +225,16 @@ export function AdminDetectionsClient() {
                           {a.label}
                         </button>
                       ))}
+                      {/* Separated + spaced from Verify to avoid accidental clicks. */}
+                      <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden />
+                      <button
+                        onClick={() => setDeleteTarget(e)}
+                        disabled={savingId === e.id}
+                        title="Permanently delete this captured frame and all detections from it"
+                        className="rounded border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-40"
+                      >
+                        Delete frame
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -236,6 +255,29 @@ export function AdminDetectionsClient() {
           setPage(1);
         }}
       />
+
+      {deleteTarget && (
+        <DeleteFrameDialog
+          detectionId={deleteTarget.id}
+          fallbackImageUrl={deleteTarget.image_url}
+          onCancel={() => setDeleteTarget(null)}
+          onDeleted={(summary) => {
+            setDeleteTarget(null);
+            setError(null);
+            setNotice(
+              summary.storageWarning
+                ? `Frame deleted (${summary.deletedEvents} detection(s)). Note: ${summary.storageWarning}`
+                : `Frame deleted: ${summary.deletedEvents} detection(s), ${summary.deletedObservations} observation link(s), ${summary.deletedSigns} sign(s) removed.`,
+            );
+            void load();
+          }}
+          onError={(msg) => {
+            setDeleteTarget(null);
+            setNotice(null);
+            setError(msg);
+          }}
+        />
+      )}
     </div>
   );
 }

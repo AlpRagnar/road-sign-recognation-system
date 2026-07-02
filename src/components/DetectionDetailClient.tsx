@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { DetectionImagePreview } from "@/components/DetectionImagePreview";
+import { DeleteFrameDialog } from "@/components/DeleteFrameDialog";
+import { getTrafficSignDisplayName } from "@/lib/traffic-sign-classes";
 import type { DetectionEvent, TrafficSign } from "@/lib/types/database";
 
 type EventWithContext = DetectionEvent & {
@@ -37,10 +40,13 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 const pct = (v: number | null) => (v != null ? `${(v * 100).toFixed(0)}%` : "—");
 
-export function DetectionDetailClient({ id }: { id: string }) {
+export function DetectionDetailClient({ id, isAdmin = false }: { id: string; isAdmin?: boolean }) {
+  const router = useRouter();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,7 +118,10 @@ export function DetectionDetailClient({ id }: { id: string }) {
       <div className="space-y-6">
         <Card title="Detection">
           <dl className="divide-y divide-slate-100">
-            <Row label="Class name" value={e.detected_class_name} />
+            <Row
+              label="Class name"
+              value={getTrafficSignDisplayName(e.detected_class_id, e.detected_class_name)}
+            />
             <Row label="Class ID" value={e.detected_class_id} />
             <Row label="Confidence" value={pct(e.confidence)} />
             <Row label="Validation status" value={e.validation_status} />
@@ -143,7 +152,7 @@ export function DetectionDetailClient({ id }: { id: string }) {
         {linkedSign && (
           <Card title="Linked traffic sign">
             <dl className="divide-y divide-slate-100">
-              <Row label="Sign type" value={linkedSign.sign_type} />
+              <Row label="Sign type" value={getTrafficSignDisplayName(null, linkedSign.sign_type)} />
               <Row
                 label="Coordinates"
                 value={`${linkedSign.latitude.toFixed(5)}, ${linkedSign.longitude.toFixed(5)}`}
@@ -157,7 +166,44 @@ export function DetectionDetailClient({ id }: { id: string }) {
             </Link>
           </Card>
         )}
+
+        {isAdmin && (
+          <Card title="Admin actions">
+            <p className="text-sm text-slate-600">
+              Permanently remove this captured frame and every detection produced from it.
+              This is different from <span className="font-medium">Reject</span>, which only
+              changes the review status and keeps the image.
+            </p>
+            {deleteError && (
+              <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+                {deleteError}
+              </p>
+            )}
+            <button
+              onClick={() => setShowDelete(true)}
+              className="mt-3 rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+            >
+              Delete frame
+            </button>
+          </Card>
+        )}
       </div>
+
+      {showDelete && (
+        <DeleteFrameDialog
+          detectionId={e.id}
+          fallbackImageUrl={e.image_url}
+          onCancel={() => setShowDelete(false)}
+          onDeleted={() => {
+            setShowDelete(false);
+            router.push("/admin/detections");
+          }}
+          onError={(msg) => {
+            setShowDelete(false);
+            setDeleteError(msg);
+          }}
+        />
+      )}
     </div>
   );
 }

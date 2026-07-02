@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/PageHeader";
 import { DetectionDetailClient } from "@/components/DetectionDetailClient";
+import { getCurrentProfile, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 // Protected by the (protected) layout auth guard; the API enforces owner/admin
 // access to the specific detection event.
-export default function DetectionDetailPage({ params }: { params: { id: string } }) {
+export default async function DetectionDetailPage({ params }: { params: { id: string } }) {
+  const profile = await getCurrentProfile();
+  const admin = isAdmin(profile);
   return (
     <>
       <PageHeader
@@ -21,7 +24,7 @@ export default function DetectionDetailPage({ params }: { params: { id: string }
           </Link>
         }
       />
-      <DetectionDetailClient id={params.id} />
+      <DetectionDetailClient id={params.id} isAdmin={admin} />
     </>
   );
 }

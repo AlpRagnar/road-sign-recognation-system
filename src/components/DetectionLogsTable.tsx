@@ -1,3 +1,4 @@
+import { getTrafficSignDisplayName } from "@/lib/traffic-sign-classes";
 import type { DetectionEvent } from "@/lib/types/database";
 
 export type DetectionLogRow = DetectionEvent & {
@@ -30,7 +31,11 @@ export function DetectionLogsTable({ events }: { events: DetectionLogRow[] }) {
         <tbody className="divide-y divide-slate-100">
           {events.map((e) => (
             <tr key={e.id}>
-              <td className="px-3 py-2 font-medium text-slate-800">{e.detected_class_name ?? "—"}</td>
+              <td className="px-3 py-2 font-medium text-slate-800">
+                {e.detected_class_name || e.detected_class_id != null
+                  ? getTrafficSignDisplayName(e.detected_class_id, e.detected_class_name)
+                  : "—"}
+              </td>
               <td className="px-3 py-2">{e.confidence != null ? `${(e.confidence * 100).toFixed(0)}%` : "—"}</td>
               <td className="px-3 py-2 text-slate-600">{e.profiles?.full_name ?? e.profiles?.email ?? "—"}</td>
               <td className="px-3 py-2 text-slate-600">{e.devices?.device_name ?? "—"}</td>

@@ -72,10 +72,10 @@ export async function POST(req: NextRequest) {
 
   if (error) return jsonError(`Could not start session: ${error.message}`, 500);
 
-  await admin
-    .from("devices")
-    .update({ status: "active", updated_at: new Date().toISOString() })
-    .eq("id", deviceId);
+  // The device must already be active to start a session (checked above for a
+  // selected device). We deliberately do NOT flip device status here — that is
+  // an admin-only field — so field users cannot (re)activate a device by
+  // starting a session.
 
   await writeSystemLog(admin, {
     action: "SESSION_STARTED",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getTrafficSignDisplayName } from "@/lib/traffic-sign-classes";
 import type { TrafficSign, ValidationStatus } from "@/lib/types/database";
 
 const ACTIONS: { label: string; status: ValidationStatus; className: string }[] = [
@@ -49,7 +50,9 @@ export function ReviewClient({ initialSigns }: { initialSigns: TrafficSign[] }) 
           className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200"
         >
           <div>
-            <p className="font-medium text-slate-800">{s.sign_type}</p>
+            <p className="font-medium text-slate-800">
+              {getTrafficSignDisplayName(null, s.sign_type)}
+            </p>
             <p className="text-xs text-slate-500">
               {s.detection_count} detections ·{" "}
               {s.confidence_score != null ? `${(s.confidence_score * 100).toFixed(0)}% avg` : "—"} ·{" "}

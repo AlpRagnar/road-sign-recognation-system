@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { DetectionImagePreview } from "@/components/DetectionImagePreview";
+import { getTrafficSignDisplayName } from "@/lib/traffic-sign-classes";
 
 export interface DetectionResult {
   id: string;
@@ -25,7 +26,9 @@ export function DetectionResultCard({ result }: { result: DetectionResult }) {
     <div className="space-y-2 rounded-lg border border-slate-200 bg-white p-3 text-sm">
       <div className="flex items-center justify-between">
         <div>
-          <p className="font-medium text-slate-800">{result.className ?? "Unknown sign"}</p>
+          <p className="font-medium text-slate-800">
+            {getTrafficSignDisplayName(null, result.className)}
+          </p>
           <p className="text-xs text-slate-400">{new Date(result.at).toLocaleTimeString()}</p>
         </div>
         <span

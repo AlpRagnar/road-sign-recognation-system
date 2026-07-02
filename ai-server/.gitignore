@@ -4,5 +4,7 @@ __pycache__/
 .venv/
 venv/
 
-# Local class mapping (keep classes.json.example tracked; the real mapping is local)
-classes.json
+# classes.json is a generated, committed artifact (see
+# scripts/generate-traffic-sign-class-map.mjs) and must stay in sync with
+# src/data/traffic-sign-classes.json — it is intentionally NOT ignored.
+# classes.json.example remains as a small illustrative sample.

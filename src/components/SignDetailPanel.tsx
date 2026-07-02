@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { DetectionImagePreview } from "@/components/DetectionImagePreview";
+import { getTrafficSignDisplayName } from "@/lib/traffic-sign-classes";
 import type { TrafficSign } from "@/lib/types/database";
 
 interface LatestEvent {
@@ -70,12 +71,14 @@ export function SignDetailPanel({ signId, onClose }: { signId: string; onClose: 
 
         {s && (
           <>
-            <p className="text-base font-semibold text-slate-900">{s.sign_type}</p>
+            <p className="text-base font-semibold text-slate-900">
+              {getTrafficSignDisplayName(null, s.sign_type)}
+            </p>
             {s.representative_image_url && (
               <div className="mt-3">
                 <DetectionImagePreview
                   imageUrl={s.representative_image_url}
-                  alt={s.sign_type}
+                  alt={getTrafficSignDisplayName(null, s.sign_type)}
                   refreshRequest={{ kind: "traffic_sign", id: s.id }}
                 />
               </div>
@@ -106,7 +109,10 @@ export function SignDetailPanel({ signId, onClose }: { signId: string; onClose: 
               </p>
               {detail.latestEvent ? (
                 <dl className="mt-1 divide-y divide-slate-100">
-                  <Row label="Class" value={detail.latestEvent.detected_class_name ?? "—"} />
+                  <Row
+                    label="Class"
+                    value={getTrafficSignDisplayName(null, detail.latestEvent.detected_class_name)}
+                  />
                   <Row
                     label="Confidence"
                     value={

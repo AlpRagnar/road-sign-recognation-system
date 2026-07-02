@@ -42,12 +42,9 @@ export async function POST(req: NextRequest) {
 
   if (error) return jsonError(`Could not stop session: ${error.message}`, 500);
 
-  if (typed.device_id) {
-    await admin
-      .from("devices")
-      .update({ status: "inactive", updated_at: new Date().toISOString() })
-      .eq("id", typed.device_id);
-  }
+  // Stopping detection ends the session only. The device's active/inactive
+  // status is an admin-controlled field and is deliberately left unchanged, so
+  // the field user can start another session immediately without reactivation.
 
   await writeSystemLog(admin, {
     action: "SESSION_STOPPED",

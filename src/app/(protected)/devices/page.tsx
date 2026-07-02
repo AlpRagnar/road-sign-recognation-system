@@ -1,9 +1,12 @@
 import { PageHeader } from "@/components/PageHeader";
 import { DeviceManager } from "@/components/DeviceManager";
+import { getCurrentProfile, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export default function DevicesPage() {
+export default async function DevicesPage() {
+  const profile = await getCurrentProfile();
+  const admin = isAdmin(profile);
   return (
     <>
       <PageHeader
@@ -11,7 +14,7 @@ export default function DevicesPage() {
         description="Register and manage the field devices you use for detection sessions."
       />
       <div className="p-8">
-        <DeviceManager />
+        <DeviceManager isAdmin={admin} />
       </div>
     </>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getTrafficSignDisplayName } from "@/lib/traffic-sign-classes";
 
 interface SelfTestDetection {
   class_id: number | null;
@@ -165,7 +166,9 @@ function SelfTestResult({ result }: { result: Result }) {
             <tbody className="divide-y divide-slate-100">
               {result.detections.map((d, i) => (
                 <tr key={i}>
-                  <td className="px-3 py-1.5 font-medium text-slate-800">{d.class_name}</td>
+                  <td className="px-3 py-1.5 font-medium text-slate-800">
+                    {getTrafficSignDisplayName(d.class_id, d.class_name)}
+                  </td>
                   <td className="px-3 py-1.5 text-slate-600">{d.class_id ?? "—"}</td>
                   <td className="px-3 py-1.5 text-slate-600">{(d.confidence * 100).toFixed(0)}%</td>
                   <td className="px-3 py-1.5 font-mono text-slate-600">
