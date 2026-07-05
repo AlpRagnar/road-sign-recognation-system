@@ -41,3 +41,6 @@ Legend — parity: COMPLETE (page-specific Stitch layout implemented) · PARTIAL
 
 ### TASK 032 screenshots (the five finished routes)
 `detection-desktop.png`, `detection-mobile-375.png`, `detection-mobile-390.png`, `sign-map-desktop.png`, `sign-map-mobile.png`, `device-map-desktop.png`, `device-map-mobile.png`, `admin-ai-desktop.png`, `admin-ai-mobile.png`, `admin-storage-desktop.png`, `admin-storage-mobile.png`.
+
+## Deployment status (TASK 033)
+**DEPLOYED AND VERIFIED** — release commit `7430d61` on `main`, live at https://road-sign-recognation-system.vercel.app. Local gate: `validate` exit 0, Playwright 88/2/0. Live smoke: 28/28 passed (all 18 routes HTTP 200, Leaflet+OSM tiles, signed image, AI health "Reachable", RBAC redirect, 0 console errors). No schema/RLS/data change. Details: `docs/release/PRODUCTION_DEPLOYMENT_REPORT.md`.
