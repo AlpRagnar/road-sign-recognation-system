@@ -6,7 +6,7 @@ location-aware, reviewable, map-ready inventory.
 Stack: **Next.js 14 (App Router) · TypeScript · Tailwind CSS · Supabase
 (Auth / Postgres / Storage) · Leaflet + OpenStreetMap**.
 
-> **Presenting this project?** See the [Demo Runbook](docs/DEMO_RUNBOOK.md).
+> **Presenting this project?** See the [Demo Runbook]
 > Seed realistic demo data from **Admin → Demo Tools** (`/admin/demo`), then walk
 > the guided flow at **`/presentation`** (presentation mode). Demo data is
 > marked and can be cleared without touching real records.
@@ -79,7 +79,7 @@ so you can exercise the whole pipeline without a real model server.
   failure breakdown, **time-series**, and a **failure-rate threshold warning**).
   Analytics are computed by DB-side RPCs (migration `0004_analytics_rpc.sql`,
   `service_role`-only) with automatic **JS fallback** (a `source` badge shows
-  which). Full spec: [`docs/AI_MODEL_INTEGRATION.md`](docs/AI_MODEL_INTEGRATION.md).
+  which).
 - **Service-role writes**: all trusted server writes use the service-role key
   inside Route Handlers, after authenticating the caller. RLS protects
   client-side reads.
@@ -150,7 +150,7 @@ so you can exercise the whole pipeline without a real model server.
   - Actions are logged (`ADMIN_DAILY_METRICS_SNAPSHOT_CREATED` / `_FAILED`) with
     safe metadata only (date, source, elapsed, success) — no secrets/raw errors.
 - **Headless cron automation** (secret-protected; see
-  [`docs/CRON_AUTOMATION.md`](docs/CRON_AUTOMATION.md)): `POST /api/cron/daily-metrics-snapshot`,
+  ): `POST /api/cron/daily-metrics-snapshot`,
   `POST /api/cron/storage-reconciliation`, and `POST /api/cron/daily-maintenance`
   authenticate with `Authorization: Bearer $CRON_SECRET` (no user session) and
   reuse the same snapshot RPC / `runReconciliation` as the admin actions. They are
@@ -248,20 +248,3 @@ so you can exercise the whole pipeline without a real model server.
   and scheduled-friendly (could later be driven by cron). All actions are logged
   with safe metadata (counts/ids only — no signed URLs or secrets).
 
-## Documentation
-
-| Doc | Purpose |
-| --- | --- |
-| [`docs/FINAL_SYSTEM_ARCHITECTURE.md`](docs/FINAL_SYSTEM_ARCHITECTURE.md) | End-to-end architecture, data flow, security & scalability. |
-| [`docs/FEATURE_INVENTORY.md`](docs/FEATURE_INVENTORY.md) | Feature groups + full page/API inventory with auth levels. |
-| [`docs/ACADEMIC_REPORT_OUTLINE.md`](docs/ACADEMIC_REPORT_OUTLINE.md) | University report skeleton (what to write per section). |
-| [`docs/PRODUCTION_READINESS_CHECKLIST.md`](docs/PRODUCTION_READINESS_CHECKLIST.md) | Code-done vs ops-config checklist. |
-| [`docs/FINAL_SMOKE_TEST_PLAN.md`](docs/FINAL_SMOKE_TEST_PLAN.md) | Step-by-step pre-delivery smoke tests (manual). |
-| [`docs/E2E_TESTING.md`](docs/E2E_TESTING.md) | Playwright E2E smoke suite: env vars, running, CI. |
-| [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) | Seed data + guided presentation flow. |
-| [`docs/AI_MODEL_INTEGRATION.md`](docs/AI_MODEL_INTEGRATION.md) | AI contract, modes, timeout/retry, observability. |
-| [`docs/CRON_AUTOMATION.md`](docs/CRON_AUTOMATION.md) | Secret-protected cron endpoints & scheduling. |
-
-Supabase setup & migration order: [`supabase/README.md`](supabase/README.md).
-
-See `ARCHITECTURE.md` and `TASK.md` for the original specification.
