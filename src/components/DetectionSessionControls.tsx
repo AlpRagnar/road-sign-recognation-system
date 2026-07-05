@@ -30,7 +30,7 @@ export function DetectionSessionControls({
   onStop,
 }: Props) {
   return (
-    <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+    <div className="rounded-md border border-line bg-white p-5">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold text-slate-900">Session</p>

@@ -15,7 +15,7 @@ export default async function AdminDemoPage() {
         title="Admin · Demo Tools"
         description="Seed deterministic demo data, review counts, and clear demo-only records."
       />
-      <div className="p-8">
+      <div className="p-4 md:p-6">
         <AdminDemoClient />
       </div>
     </>

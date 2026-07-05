@@ -76,7 +76,7 @@ export function AdminAiSelfTestClient() {
   }
 
   return (
-    <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+    <div className="rounded-md bg-white border border-line">
       <div className="border-b border-slate-200 px-5 py-3">
         <h2 className="text-sm font-semibold text-slate-900">Model contract self-test</h2>
         <p className="mt-0.5 text-xs text-slate-500">
@@ -153,7 +153,7 @@ function SelfTestResult({ result }: { result: Result }) {
       </div>
 
       {result.detections.length > 0 && (
-        <div className="mt-3 overflow-x-auto rounded-md bg-white ring-1 ring-slate-200">
+        <div className="mt-3 overflow-x-auto rounded-md border border-line bg-white">
           <table className="min-w-full divide-y divide-slate-200 text-xs">
             <thead className="bg-slate-50 text-left uppercase tracking-wide text-slate-500">
               <tr>

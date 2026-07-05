@@ -15,7 +15,7 @@ export default async function AdminDevicesPage() {
         title="Admin · Devices"
         description="All devices across users. Edit name, type, or status inline."
       />
-      <div className="p-8">
+      <div className="p-4 md:p-6">
         <AdminDevicesClient />
       </div>
     </>

@@ -71,7 +71,7 @@ const CATEGORIES = ["config", "timeout", "network", "http", "validation", "unkno
 
 function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
-    <div className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-slate-200">
+    <div className="rounded-lg bg-white p-4 border border-line">
       <p className="text-xs text-slate-500">{label}</p>
       <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
       {hint && <p className="mt-0.5 text-xs text-slate-400">{hint}</p>}
@@ -217,7 +217,7 @@ export function AdminAiLogsClient() {
 
       {/* Time-series visualization (div bars) */}
       {timeSeries.length > 0 && (
-        <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div className="rounded-md bg-white p-5 border border-line">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-slate-900">Request volume & failure rate</h3>
             <span className="text-xs text-slate-400">
@@ -229,7 +229,7 @@ export function AdminAiLogsClient() {
       )}
 
       {summary && (
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg bg-white px-4 py-2 text-xs text-slate-500 shadow-sm ring-1 ring-slate-200">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg bg-white px-4 py-2 text-xs text-slate-500 border border-line">
           <span>Latest success: {fmt(summary.latestSuccessAt)}</span>
           <span>Latest failure: {fmt(summary.latestFailureAt)}</span>
           <span className="ml-auto">
@@ -273,7 +273,7 @@ export function AdminAiLogsClient() {
         </select>
       </div>
 
-      <div className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+      <div className="overflow-x-auto rounded-md bg-white border border-line">
         {loading ? (
           <p className="px-4 py-6 text-sm text-slate-400">Loading logs…</p>
         ) : rows.length === 0 ? (

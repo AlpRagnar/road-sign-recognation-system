@@ -112,7 +112,9 @@ test.describe("mobile live detection", () => {
     await startDetection(page);
 
     // Frame count moves off 0…
-    await expect(page.getByText(/\b[1-9]\d* frames sent/)).toBeVisible({ timeout: 15_000 });
+    // The frame counter is shown in the mobile status strip (first match) and,
+    // hidden on this viewport, in the desktop control rail — scope to the visible one.
+    await expect(page.getByText(/\b[1-9]\d* frames sent/).first()).toBeVisible({ timeout: 15_000 });
     // …and the live cards show FRIENDLY names immediately.
     await expect(page.getByText("Maximum Speed Limit 60").first()).toBeVisible();
     await expect(page.getByText("No Entry").first()).toBeVisible();
@@ -125,7 +127,9 @@ test.describe("mobile live detection", () => {
   test("zero-detection frame still increments the counter without error", async ({ page }) => {
     await mockDetectionApis(page, (route) => route.fulfill({ json: frameResponse([]) }));
     await startDetection(page);
-    await expect(page.getByText(/\b[1-9]\d* frames sent/)).toBeVisible({ timeout: 15_000 });
+    // The frame counter is shown in the mobile status strip (first match) and,
+    // hidden on this viewport, in the desktop control rail — scope to the visible one.
+    await expect(page.getByText(/\b[1-9]\d* frames sent/).first()).toBeVisible({ timeout: 15_000 });
     await expect(page.locator(ERROR_BANNER)).toHaveCount(0);
     await page.getByRole("button", { name: /stop detection/i }).click();
   });
@@ -207,7 +211,7 @@ test.describe("mobile live detection", () => {
     await page.waitForTimeout(3500);
     await expect(page.getByText("Wild Animals")).toHaveCount(0);
     await expect(page.locator(ERROR_BANNER)).toHaveCount(0);
-    await expect(page.getByText(/Stopped ·/)).toBeVisible();
+    await expect(page.getByText(/Stopped ·/).first()).toBeVisible();
   });
 
   test("no horizontal overflow while live cards are shown", async ({ page }) => {

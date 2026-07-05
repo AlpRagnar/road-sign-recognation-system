@@ -13,7 +13,7 @@ export default async function DevicesPage() {
         title="Devices"
         description="Register and manage the field devices you use for detection sessions."
       />
-      <div className="p-8">
+      <div className="p-4 md:p-6">
         <DeviceManager isAdmin={admin} />
       </div>
     </>

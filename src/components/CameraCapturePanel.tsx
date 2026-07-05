@@ -13,7 +13,7 @@ interface Props {
 export const CameraCapturePanel = forwardRef<HTMLVideoElement, Props>(
   function CameraCapturePanel({ state, lastFrameAt }, ref) {
     return (
-      <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <div className="rounded-md border border-line bg-white p-5">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-900">Camera</h3>
           <span className="text-xs text-slate-500">

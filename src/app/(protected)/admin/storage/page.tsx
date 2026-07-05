@@ -16,7 +16,7 @@ export default async function AdminStoragePage() {
         title="Admin · Storage"
         description="Backfill status, quarantine-first reconciliation, and safe orphan cleanup."
       />
-      <div className="space-y-8 p-8">
+      <div className="space-y-8 p-4 md:p-6">
         <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
             Backfill & legacy tools

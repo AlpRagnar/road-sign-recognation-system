@@ -15,7 +15,7 @@ export default async function AdminUsersPage() {
         title="Admin · Users"
         description="All profiles. Update display name and role. Auth-level user creation is out of scope."
       />
-      <div className="p-8">
+      <div className="p-4 md:p-6">
         <AdminUsersClient currentProfileId={profile!.id} />
       </div>
     </>

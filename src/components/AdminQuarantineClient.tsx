@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PaginationBar } from "@/components/PaginationBar";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { ErrorBanner } from "@/components/ui/primitives";
 
 interface Candidate {
   id: string;
@@ -76,6 +78,7 @@ export function AdminQuarantineClient() {
   const [lastRun, setLastRun] = useState<RunSummary | null>(null);
   const [runs, setRuns] = useState<ReconRun[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -179,13 +182,6 @@ export function AdminQuarantineClient() {
   async function deleteSelected() {
     const ids = [...selected];
     if (ids.length === 0) return;
-    if (
-      !confirm(
-        "This permanently deletes Storage objects. Only eligible, still-unreferenced pending candidates will be deleted.",
-      )
-    ) {
-      return;
-    }
     setBusy("delete");
     setError(null);
     setNotice(null);
@@ -203,17 +199,20 @@ export function AdminQuarantineClient() {
       setError((err as Error).message);
     } finally {
       setBusy(null);
+      setConfirmDelete(false);
     }
   }
 
   return (
     <div className="space-y-6">
-      {error && <p className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
-      {notice && <p className="rounded-md bg-green-50 px-4 py-2 text-sm text-green-700">{notice}</p>}
+      {error && <ErrorBanner message={error} />}
+      {notice && (
+        <p className="rounded-md border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">{notice}</p>
+      )}
 
       {/* Reconciliation section */}
-      <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-        <div className="border-b border-slate-200 px-5 py-3">
+      <div className="rounded-md border border-line bg-white">
+        <div className="border-b border-line px-5 py-3">
           <h2 className="text-sm font-semibold text-slate-900">Reconciliation</h2>
         </div>
         <div className="space-y-3 px-5 py-4">
@@ -249,8 +248,8 @@ export function AdminQuarantineClient() {
             {runs.length === 0 ? (
               <p className="text-xs text-slate-400">No reconciliation runs recorded yet.</p>
             ) : (
-              <div className="overflow-x-auto rounded-md ring-1 ring-slate-200">
-                <table className="min-w-full divide-y divide-slate-200 text-xs">
+              <div className="overflow-x-auto rounded-md border border-line">
+                <table className="min-w-full divide-y divide-line text-xs">
                   <thead className="bg-slate-50 text-left uppercase tracking-wide text-slate-500">
                     <tr>
                       <th className="px-3 py-2">Run</th>
@@ -291,8 +290,8 @@ export function AdminQuarantineClient() {
       </div>
 
       {/* Quarantine candidates section */}
-      <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-5 py-3">
+      <div className="rounded-md border border-line bg-white">
+        <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-3">
           <h2 className="text-sm font-semibold text-slate-900">Quarantine candidates</h2>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <input
@@ -328,7 +327,7 @@ export function AdminQuarantineClient() {
               Eligible only
             </label>
             <button
-              onClick={deleteSelected}
+              onClick={() => setConfirmDelete(true)}
               disabled={busy != null || selected.size === 0}
               className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
             >
@@ -343,8 +342,8 @@ export function AdminQuarantineClient() {
           ) : rows.length === 0 ? (
             <p className="px-5 py-6 text-sm text-slate-400">No quarantine candidates.</p>
           ) : (
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <table className="min-w-full divide-y divide-line text-sm">
+              <thead className="bg-panel/60 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-3 py-3"></th>
                   <th className="px-3 py-3">Object path</th>
@@ -425,6 +424,19 @@ export function AdminQuarantineClient() {
           setPage(1);
         }}
       />
+
+      <ConfirmModal
+        open={confirmDelete}
+        title="Delete quarantined objects?"
+        confirmLabel={`Delete ${selected.size} object(s)`}
+        destructive
+        busy={busy === "delete"}
+        onConfirm={deleteSelected}
+        onCancel={() => setConfirmDelete(false)}
+      >
+        This permanently deletes Storage objects. Only eligible, still-unreferenced pending candidates
+        are deleted; anything that has become referenced again is skipped.
+      </ConfirmModal>
     </div>
   );
 }

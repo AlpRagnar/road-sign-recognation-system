@@ -15,7 +15,7 @@ export default async function AdminAnalyticsPage() {
         title="Admin · Analytics"
         description="Daily operational metric snapshots and long-range trends."
       />
-      <div className="p-8">
+      <div className="p-4 md:p-6">
         <AdminAnalyticsClient />
       </div>
     </>

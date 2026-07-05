@@ -54,7 +54,8 @@ test.describe("authenticated smoke", () => {
     // The presentation badge is uniquely identified by its Exit control (avoids
     // matching the page description text that also contains "presentation mode").
     await expect(page.getByRole("link", { name: "Exit" })).toBeVisible();
-    await expect(page.getByText("System Overview")).toBeVisible();
+    // Guided step cards are present (first step links to the Dashboard).
+    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   });
 
   test("/detection renders with device selector (camera/GPS mocked)", async ({ page }) => {

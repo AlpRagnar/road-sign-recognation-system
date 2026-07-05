@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { PaginationBar } from "@/components/PaginationBar";
 import { DeleteFrameDialog } from "@/components/DeleteFrameDialog";
+import { OverflowMenu } from "@/components/ui/OverflowMenu";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getTrafficSignDisplayName } from "@/lib/traffic-sign-classes";
 import type { DetectionEvent, ValidationStatus } from "@/lib/types/database";
 
@@ -21,14 +23,8 @@ const STATUS_OPTIONS = [
   "low_confidence",
 ];
 
-const ACTIONS: { label: string; status: ValidationStatus; cls: string }[] = [
-  { label: "Verify", status: "manually_verified", cls: "bg-green-600 hover:bg-green-700" },
-  { label: "Reject", status: "rejected", cls: "bg-red-600 hover:bg-red-700" },
-  { label: "Duplicate", status: "duplicate", cls: "bg-slate-500 hover:bg-slate-600" },
-  { label: "Reset", status: "pending", cls: "bg-amber-500 hover:bg-amber-600" },
-];
-
 export function AdminDetectionsClient() {
+  const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -203,38 +199,30 @@ export function AdminDetectionsClient() {
                       "—"
                     )}
                   </td>
-                  <td className="px-3 py-2 text-xs">{e.validation_status}</td>
-                  <td className="px-3 py-2 text-xs text-slate-500">
+                  <td className="px-3 py-2 text-xs"><StatusBadge status={e.validation_status} /></td>
+                  <td className="px-3 py-2 font-mono text-xs tabular text-slate-500">
                     {new Date(e.created_at).toLocaleString()}
                   </td>
                   <td className="px-3 py-2">
-                    <div className="flex items-center justify-end gap-1">
-                      <Link
-                        href={`/detections/${e.id}`}
-                        className="mr-1 rounded px-2 py-1 text-xs text-brand underline hover:text-brand-dark"
-                      >
-                        View details
-                      </Link>
-                      {ACTIONS.map((a) => (
-                        <button
-                          key={a.status}
-                          onClick={() => review(e.id, a.status)}
-                          disabled={savingId === e.id || e.validation_status === a.status}
-                          className={`rounded px-2 py-1 text-xs font-medium text-white disabled:opacity-40 ${a.cls}`}
-                        >
-                          {a.label}
-                        </button>
-                      ))}
-                      {/* Separated + spaced from Verify to avoid accidental clicks. */}
-                      <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden />
+                    <div className="flex items-center justify-end gap-1.5">
+                      {/* Primary action */}
                       <button
-                        onClick={() => setDeleteTarget(e)}
-                        disabled={savingId === e.id}
-                        title="Permanently delete this captured frame and all detections from it"
-                        className="rounded border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-40"
+                        onClick={() => review(e.id, "manually_verified")}
+                        disabled={savingId === e.id || e.validation_status === "manually_verified"}
+                        className="rounded-md bg-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-40"
                       >
-                        Delete frame
+                        Verify
                       </button>
+                      {/* Secondary actions in an overflow menu */}
+                      <OverflowMenu
+                        items={[
+                          { label: "Reject", onClick: () => review(e.id, "rejected"), disabled: e.validation_status === "rejected" },
+                          { label: "Mark duplicate", onClick: () => review(e.id, "duplicate"), disabled: e.validation_status === "duplicate" },
+                          { label: "Reset to pending", onClick: () => review(e.id, "pending"), disabled: e.validation_status === "pending" },
+                          { label: "View details", onClick: () => router.push(`/detections/${e.id}`) },
+                          { label: "Delete frame", onClick: () => setDeleteTarget(e), destructive: true, dividerBefore: true },
+                        ]}
+                      />
                     </div>
                   </td>
                 </tr>

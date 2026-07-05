@@ -13,7 +13,7 @@ function StatusDot({ ok }: { ok: boolean }) {
 export function LocationStatusPanel({ geo }: { geo: GeoState }) {
   const hasFix = geo.latitude != null && geo.longitude != null;
   return (
-    <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+    <div className="rounded-md border border-line bg-white p-5">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-900">Location</h3>
         <span className="flex items-center gap-2 text-xs text-slate-500">

@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { CredentialDialog, type CredentialInfo } from "@/components/CredentialDialog";
 import { PaginationBar } from "@/components/PaginationBar";
+import { Drawer } from "@/components/ui/Drawer";
+import { OverflowMenu } from "@/components/ui/OverflowMenu";
+import { Icon } from "@/components/ui/Icon";
+import { ErrorBanner, EmptyState, SkeletonRows, btnPrimary } from "@/components/ui/primitives";
 import type { Profile } from "@/lib/types/database";
 
 interface CreateForm {
@@ -13,13 +17,23 @@ interface CreateForm {
   password: string;
 }
 
-const EMPTY_CREATE: CreateForm = {
-  full_name: "",
-  email: "",
-  role: "user",
-  autoPassword: true,
-  password: "",
-};
+const EMPTY_CREATE: CreateForm = { full_name: "", email: "", role: "user", autoPassword: true, password: "" };
+const inputCls =
+  "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary";
+
+function RoleBadge({ role }: { role: string }) {
+  const admin = role === "admin";
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-badge px-2 py-0.5 text-xs font-medium ${
+        admin ? "bg-primary/10 text-primary" : "bg-slate-100 text-slate-600"
+      }`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${admin ? "bg-primary" : "bg-slate-400"}`} />
+      {admin ? "Admin" : "User"}
+    </span>
+  );
+}
 
 export function AdminUsersClient({ currentProfileId }: { currentProfileId: string }) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -29,22 +43,16 @@ export function AdminUsersClient({ currentProfileId }: { currentProfileId: strin
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  // Query controls
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | "user" | "admin">("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  // Create user
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState<CreateForm>({ ...EMPTY_CREATE });
   const [creating, setCreating] = useState(false);
-
-  // Reset password
   const [resettingId, setResettingId] = useState<string | null>(null);
-
-  // One-time credential dialog
   const [credential, setCredential] = useState<CredentialInfo | null>(null);
 
   useEffect(() => {
@@ -159,16 +167,21 @@ export function AdminUsersClient({ currentProfileId }: { currentProfileId: strin
 
   return (
     <div className="space-y-4">
-      {error && <p className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
+      {error && <ErrorBanner message={error} />}
 
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-2">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search email or name…"
-          className="w-64 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-        />
+        <div className="relative">
+          <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
+            <Icon name="search" size={16} />
+          </span>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search email or name…"
+            className="w-64 rounded-md border border-slate-300 py-2 pl-8 pr-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+        </div>
         <select
           value={roleFilter}
           onChange={(e) => {
@@ -178,152 +191,137 @@ export function AdminUsersClient({ currentProfileId }: { currentProfileId: strin
           className="rounded-md border border-slate-300 px-2 py-2 text-sm"
         >
           <option value="all">All roles</option>
-          <option value="user">user</option>
-          <option value="admin">admin</option>
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
         </select>
         <button
           onClick={() => {
-            setShowCreate((s) => !s);
             setCreateForm({ ...EMPTY_CREATE });
+            setShowCreate(true);
           }}
-          className="ml-auto rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+          className={`${btnPrimary} ml-auto`}
         >
-          {showCreate ? "Cancel" : "Create user"}
+          <Icon name="plus" size={16} />
+          Create user
         </button>
       </div>
 
-      {/* Create form */}
-      {showCreate && (
-        <form onSubmit={submitCreate} className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          <h3 className="text-sm font-semibold text-slate-900">Create a Supabase Auth user</h3>
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-xs font-medium text-slate-600">Full name</label>
-              <input
-                value={createForm.full_name}
-                onChange={(e) => setCreateForm({ ...createForm, full_name: e.target.value })}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600">Email *</label>
-              <input
-                type="email"
-                required
-                value={createForm.email}
-                onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600">Role *</label>
-              <select
-                value={createForm.role}
-                onChange={(e) =>
-                  setCreateForm({ ...createForm, role: e.target.value as "user" | "admin" })
-                }
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="user">user</option>
-                <option value="admin">admin</option>
-              </select>
-            </div>
-            <div>
-              <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={createForm.autoPassword}
-                  onChange={(e) => setCreateForm({ ...createForm, autoPassword: e.target.checked })}
-                />
-                Auto-generate temporary password
-              </label>
-              {!createForm.autoPassword && (
-                <input
-                  type="text"
-                  value={createForm.password}
-                  onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
-                  placeholder="Min 8 characters"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-                />
-              )}
-            </div>
-          </div>
-          <div className="mt-4">
-            <button
-              type="submit"
-              disabled={creating}
-              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
-            >
-              {creating ? "Creating…" : "Create user"}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Table */}
-      <div className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+      {/* Desktop table */}
+      <div className="hidden overflow-hidden rounded-md border border-line bg-white md:block">
         {loading ? (
-          <p className="px-4 py-6 text-sm text-slate-400">Loading users…</p>
+          <SkeletonRows rows={5} cols={5} />
         ) : profiles.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-slate-400">No users match your filters.</p>
+          <EmptyState icon="users" title="No users match your filters." />
         ) : (
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-3 py-3">Full name</th>
-                <th className="px-3 py-3">Email</th>
-                <th className="px-3 py-3">Role</th>
-                <th className="px-3 py-3">Created</th>
-                <th className="px-3 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {profiles.map((p) => {
-                const isSelf = p.id === currentProfileId;
-                return (
-                  <tr key={p.id} className={savingId === p.id ? "opacity-50" : ""}>
-                    <td className="px-3 py-2">
-                      <input
-                        defaultValue={p.full_name ?? ""}
-                        key={p.full_name ?? ""}
-                        onBlur={(e) => {
-                          const v = e.target.value.trim();
-                          if (v !== (p.full_name ?? "")) patch(p.id, { full_name: v });
-                        }}
-                        className="w-44 rounded border border-transparent px-1 py-0.5 hover:border-slate-300 focus:border-brand focus:outline-none"
-                        placeholder="—"
-                      />
-                    </td>
-                    <td className="px-3 py-2 text-slate-600">{p.email ?? "—"}</td>
-                    <td className="px-3 py-2">
-                      <select
-                        value={p.role}
-                        disabled={isSelf}
-                        title={isSelf ? "You cannot change your own role" : undefined}
-                        onChange={(e) => patch(p.id, { role: e.target.value })}
-                        className="rounded border border-slate-300 px-1 py-0.5 text-xs disabled:opacity-50"
-                      >
-                        <option value="user">user</option>
-                        <option value="admin">admin</option>
-                      </select>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-slate-500">
-                      {new Date(p.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <button
-                        onClick={() => resetPassword(p)}
-                        disabled={resettingId === p.id}
-                        className="text-xs text-brand underline hover:text-brand-dark disabled:opacity-50"
-                      >
-                        {resettingId === p.id ? "Resetting…" : "Reset password"}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="min-w-full border-collapse text-sm">
+              <thead className="bg-panel/60 text-left">
+                <tr className="[&>th]:px-3 [&>th]:py-2.5 [&>th]:font-mono [&>th]:text-[11px] [&>th]:uppercase [&>th]:tracking-wider [&>th]:text-slate-500">
+                  <th>Full name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Created</th>
+                  <th className="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line/60">
+                {profiles.map((p) => {
+                  const isSelf = p.id === currentProfileId;
+                  return (
+                    <tr key={p.id} className={`hover:bg-panel/40 ${savingId === p.id ? "opacity-50" : ""}`}>
+                      <td className="px-3 py-2">
+                        <input
+                          defaultValue={p.full_name ?? ""}
+                          key={p.full_name ?? ""}
+                          onBlur={(e) => {
+                            const v = e.target.value.trim();
+                            if (v !== (p.full_name ?? "")) patch(p.id, { full_name: v });
+                          }}
+                          className="w-44 rounded border border-transparent px-1 py-0.5 hover:border-slate-300 focus:border-primary focus:outline-none"
+                          placeholder="—"
+                        />
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs text-slate-600">{p.email ?? "—"}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <RoleBadge role={p.role} />
+                          <select
+                            value={p.role}
+                            disabled={isSelf}
+                            title={isSelf ? "You cannot change your own role" : "Change role"}
+                            onChange={(e) => patch(p.id, { role: e.target.value })}
+                            className="rounded border border-slate-300 px-1 py-0.5 text-xs disabled:opacity-40"
+                          >
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs tabular text-slate-500">
+                        {new Date(p.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <OverflowMenu
+                          items={[
+                            {
+                              label: resettingId === p.id ? "Resetting…" : "Reset password",
+                              onClick: () => resetPassword(p),
+                              disabled: resettingId === p.id,
+                            },
+                          ]}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Mobile cards */}
+      <div className="space-y-3 md:hidden">
+        {loading ? (
+          <div className="rounded-md border border-line bg-white"><SkeletonRows rows={3} cols={2} /></div>
+        ) : profiles.length === 0 ? (
+          <div className="rounded-md border border-line bg-white">
+            <EmptyState icon="users" title="No users match your filters." />
+          </div>
+        ) : (
+          profiles.map((p) => {
+            const isSelf = p.id === currentProfileId;
+            return (
+              <div key={p.id} className="rounded-md border border-line bg-white p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-slate-800">{p.full_name || "—"}</p>
+                    <p className="truncate font-mono text-xs text-slate-500">{p.email}</p>
+                  </div>
+                  <RoleBadge role={p.role} />
+                </div>
+                <div className="mt-3 flex items-center justify-between">
+                  {!isSelf && (
+                    <select
+                      value={p.role}
+                      onChange={(e) => patch(p.id, { role: e.target.value })}
+                      className="rounded border border-slate-300 px-2 py-1 text-xs"
+                    >
+                      <option value="user">User</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  )}
+                  <button
+                    onClick={() => resetPassword(p)}
+                    disabled={resettingId === p.id}
+                    className="ml-auto text-xs font-medium text-primary hover:underline disabled:opacity-50"
+                  >
+                    {resettingId === p.id ? "Resetting…" : "Reset password"}
+                  </button>
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
 
@@ -339,9 +337,70 @@ export function AdminUsersClient({ currentProfileId }: { currentProfileId: strin
         }}
       />
 
-      {credential && (
-        <CredentialDialog info={credential} onClose={() => setCredential(null)} />
-      )}
+      {/* Create-user drawer */}
+      <Drawer
+        open={showCreate}
+        title="Create a Supabase Auth user"
+        onClose={() => setShowCreate(false)}
+        footer={
+          <button type="submit" form="create-user-form" disabled={creating} className={`${btnPrimary} w-full`}>
+            {creating ? "Creating…" : "Create user"}
+          </button>
+        }
+      >
+        <form id="create-user-form" onSubmit={submitCreate} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-600">Full name</label>
+            <input
+              value={createForm.full_name}
+              onChange={(e) => setCreateForm({ ...createForm, full_name: e.target.value })}
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600">Email *</label>
+            <input
+              type="email"
+              required
+              value={createForm.email}
+              onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600">Role *</label>
+            <select
+              value={createForm.role}
+              onChange={(e) => setCreateForm({ ...createForm, role: e.target.value as "user" | "admin" })}
+              className={inputCls}
+            >
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div>
+            <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+              <input
+                type="checkbox"
+                checked={createForm.autoPassword}
+                onChange={(e) => setCreateForm({ ...createForm, autoPassword: e.target.checked })}
+              />
+              Auto-generate temporary password
+            </label>
+            {!createForm.autoPassword && (
+              <input
+                type="text"
+                value={createForm.password}
+                onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                placeholder="Min 8 characters"
+                className={inputCls}
+              />
+            )}
+          </div>
+        </form>
+      </Drawer>
+
+      {credential && <CredentialDialog info={credential} onClose={() => setCredential(null)} />}
     </div>
   );
 }

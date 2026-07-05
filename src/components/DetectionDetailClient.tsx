@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { DetectionImagePreview } from "@/components/DetectionImagePreview";
 import { DeleteFrameDialog } from "@/components/DeleteFrameDialog";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ConfidenceMeter, ErrorBanner } from "@/components/ui/primitives";
+import { DangerZone } from "@/components/ui/ConfirmModal";
+import { Icon } from "@/components/ui/Icon";
 import { getTrafficSignDisplayName } from "@/lib/traffic-sign-classes";
 import type { DetectionEvent, TrafficSign } from "@/lib/types/database";
 
@@ -18,20 +22,22 @@ interface Detail {
   linkedSign: TrafficSign | null;
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
+function Row({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
-    <div className="flex justify-between gap-4 py-1.5 text-sm">
+    <div className="flex items-center justify-between gap-4 py-1.5 text-sm">
       <dt className="text-slate-500">{label}</dt>
-      <dd className="text-right font-medium text-slate-800">{value ?? "—"}</dd>
+      <dd className={`text-right font-medium text-slate-800 ${mono ? "font-mono tabular text-[13px]" : ""}`}>
+        {value ?? "—"}
+      </dd>
     </div>
   );
 }
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-      <div className="border-b border-slate-200 px-5 py-3">
-        <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+    <div className="rounded-md border border-line bg-white">
+      <div className="border-b border-line px-5 py-3">
+        <h2 className="text-[15px] font-semibold text-slate-900">{title}</h2>
       </div>
       <div className="px-5 py-3">{children}</div>
     </div>
@@ -66,11 +72,12 @@ export function DetectionDetailClient({ id, isAdmin = false }: { id: string; isA
     };
   }, [id]);
 
-  if (loading) return <p className="p-8 text-sm text-slate-400">Loading detection…</p>;
-  if (error) return <p className="m-8 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>;
+  if (loading) return <p className="p-6 text-sm text-slate-400">Loading detection…</p>;
+  if (error) return <div className="m-4 md:m-6"><ErrorBanner message={error} /></div>;
   if (!detail) return null;
 
   const { event: e, linkedSign } = detail;
+  const label = getTrafficSignDisplayName(e.detected_class_id, e.detected_class_name);
   const rawJson = (() => {
     try {
       return JSON.stringify(e.ai_response_raw, null, 2);
@@ -80,7 +87,8 @@ export function DetectionDetailClient({ id, isAdmin = false }: { id: string; isA
   })();
 
   return (
-    <div className="grid grid-cols-1 gap-6 p-8 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-6 p-4 md:p-6 lg:grid-cols-3">
+      {/* Evidence (hero) */}
       <div className="space-y-6 lg:col-span-2">
         <Card title="Captured frame">
           <DetectionImagePreview
@@ -96,96 +104,100 @@ export function DetectionDetailClient({ id, isAdmin = false }: { id: string; isA
               href={e.image_url}
               target="_blank"
               rel="noreferrer"
-              className="mt-2 inline-block text-xs text-brand underline"
+              className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
             >
-              Open original image
+              <Icon name="external" size={12} /> Open original image
             </a>
           )}
         </Card>
 
         <Card title="AI response (raw)">
           <details>
-            <summary className="cursor-pointer text-sm text-slate-600">
-              Show raw AI response JSON
-            </summary>
-            <pre className="mt-3 max-h-96 overflow-auto rounded-md bg-slate-900 p-3 text-xs text-slate-100">
+            <summary className="cursor-pointer text-sm text-slate-600">Show raw AI response JSON</summary>
+            <pre className="mt-3 max-h-96 overflow-auto rounded-md bg-navy p-3 font-mono text-xs text-slate-100">
               {rawJson}
             </pre>
           </details>
         </Card>
       </div>
 
+      {/* Fact sheet */}
       <div className="space-y-6">
+        {/* Hero facts header */}
+        <div className="rounded-md border border-line bg-white p-5">
+          <p className="text-lg font-semibold text-slate-900">{label}</p>
+          <p className="mt-0.5 font-mono text-xs tabular text-slate-500">Class ID {e.detected_class_id ?? "—"}</p>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <ConfidenceMeter value={e.confidence} />
+            <StatusBadge status={e.validation_status} />
+          </div>
+        </div>
+
         <Card title="Detection">
-          <dl className="divide-y divide-slate-100">
-            <Row
-              label="Class name"
-              value={getTrafficSignDisplayName(e.detected_class_id, e.detected_class_name)}
-            />
-            <Row label="Class ID" value={e.detected_class_id} />
-            <Row label="Confidence" value={pct(e.confidence)} />
-            <Row label="Validation status" value={e.validation_status} />
-            <Row label="AI response time" value={e.ai_response_time_ms != null ? `${e.ai_response_time_ms} ms` : "—"} />
-            <Row label="Created" value={new Date(e.created_at).toLocaleString()} />
+          <dl className="divide-y divide-line/70">
+            <Row label="Confidence" value={pct(e.confidence)} mono />
+            <Row label="AI response time" value={e.ai_response_time_ms != null ? `${e.ai_response_time_ms} ms` : "—"} mono />
+            <Row label="Created" value={new Date(e.created_at).toLocaleString()} mono />
           </dl>
         </Card>
 
         <Card title="Location">
-          <dl className="divide-y divide-slate-100">
-            <Row label="Latitude" value={e.latitude != null ? e.latitude.toFixed(6) : "—"} />
-            <Row label="Longitude" value={e.longitude != null ? e.longitude.toFixed(6) : "—"} />
-            <Row label="GPS accuracy" value={e.gps_accuracy != null ? `${e.gps_accuracy.toFixed(1)} m` : "—"} />
-            <Row label="Heading" value={e.heading != null ? `${e.heading.toFixed(0)}°` : "—"} />
-            <Row label="Speed" value={e.speed != null ? `${e.speed.toFixed(1)} m/s` : "—"} />
+          <dl className="divide-y divide-line/70">
+            <Row label="Latitude" value={e.latitude != null ? e.latitude.toFixed(6) : "—"} mono />
+            <Row label="Longitude" value={e.longitude != null ? e.longitude.toFixed(6) : "—"} mono />
+            <Row label="GPS accuracy" value={e.gps_accuracy != null ? `${e.gps_accuracy.toFixed(1)} m` : "—"} mono />
+            <Row label="Heading" value={e.heading != null ? `${e.heading.toFixed(0)}°` : "—"} mono />
+            <Row label="Speed" value={e.speed != null ? `${e.speed.toFixed(1)} m/s` : "—"} mono />
           </dl>
         </Card>
 
         <Card title="Device & user">
-          <dl className="divide-y divide-slate-100">
+          <dl className="divide-y divide-line/70">
             <Row label="Device" value={e.devices?.device_name} />
             <Row label="Device type" value={e.devices?.device_type} />
-            <Row label="Identifier" value={e.devices?.device_identifier} />
+            <Row label="Identifier" value={e.devices?.device_identifier} mono />
             <Row label="User" value={e.profiles?.full_name ?? e.profiles?.email} />
           </dl>
         </Card>
 
         {linkedSign && (
           <Card title="Linked traffic sign">
-            <dl className="divide-y divide-slate-100">
+            <dl className="divide-y divide-line/70">
               <Row label="Sign type" value={getTrafficSignDisplayName(null, linkedSign.sign_type)} />
               <Row
                 label="Coordinates"
                 value={`${linkedSign.latitude.toFixed(5)}, ${linkedSign.longitude.toFixed(5)}`}
+                mono
               />
-              <Row label="Confidence" value={pct(linkedSign.confidence_score)} />
-              <Row label="Detections" value={linkedSign.detection_count} />
-              <Row label="Status" value={linkedSign.verification_status} />
+              <Row label="Confidence" value={pct(linkedSign.confidence_score)} mono />
+              <Row label="Detections" value={linkedSign.detection_count} mono />
+              <Row label="Status" value={<StatusBadge status={linkedSign.verification_status} />} />
             </dl>
-            <Link href="/map/signs" className="mt-3 inline-block text-xs text-brand underline">
-              View on sign map
+            <Link href="/map/signs" className="mt-3 inline-flex items-center gap-1 text-xs text-primary hover:underline">
+              <Icon name="signmap" size={12} /> View on Sign Map
             </Link>
           </Card>
         )}
 
         {isAdmin && (
-          <Card title="Admin actions">
-            <p className="text-sm text-slate-600">
-              Permanently remove this captured frame and every detection produced from it.
-              This is different from <span className="font-medium">Reject</span>, which only
-              changes the review status and keeps the image.
+          <DangerZone title="Admin actions">
+            <p className="text-sm text-red-700/90">
+              Permanently remove this captured frame and every detection produced from it. This is different
+              from <span className="font-medium">Reject</span>, which only changes the review status and keeps the image.
             </p>
-            {deleteError && (
-              <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-                {deleteError}
-              </p>
-            )}
-            <button
-              onClick={() => setShowDelete(true)}
-              className="mt-3 rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
-            >
-              Delete frame
-            </button>
-          </Card>
+            {deleteError && <p className="mt-3 rounded-md bg-red-100 px-3 py-2 text-sm text-red-700">{deleteError}</p>}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setShowDelete(true)}
+                className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700"
+              >
+                Delete frame
+              </button>
+              <Link href="/admin/detections" className="rounded-md border border-line bg-white px-3 py-2 text-sm text-slate-700 hover:bg-panel">
+                Open in Detection Review
+              </Link>
+            </div>
+          </DangerZone>
         )}
       </div>
 

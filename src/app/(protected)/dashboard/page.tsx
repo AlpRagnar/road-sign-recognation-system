@@ -4,9 +4,21 @@ import { getCurrentProfile, isAdmin } from "@/lib/auth";
 import { getDashboardSummary } from "@/lib/dashboard";
 import { getTrafficSignDisplayName } from "@/lib/traffic-sign-classes";
 import { PageHeader } from "@/components/PageHeader";
-import { DashboardMetricCard } from "@/components/DashboardMetricCard";
+import { KpiTile, ConfidenceMeter } from "@/components/ui/primitives";
+import { Icon } from "@/components/ui/Icon";
+import { btnPrimary } from "@/components/ui/primitives";
 
 export const dynamic = "force-dynamic";
+
+// Semantic bar colour per verification status.
+const STATUS_BAR: Record<string, { dot: string; bar: string; label: string }> = {
+  pending: { dot: "bg-amber-500", bar: "bg-amber-500", label: "Pending" },
+  auto_verified: { dot: "bg-sky-500", bar: "bg-sky-500", label: "Auto Verified" },
+  manually_verified: { dot: "bg-green-500", bar: "bg-green-500", label: "Manually Verified" },
+  rejected: { dot: "bg-red-500", bar: "bg-red-500", label: "Rejected" },
+  duplicate: { dot: "bg-violet-500", bar: "bg-violet-500", label: "Duplicate" },
+  low_confidence: { dot: "bg-orange-500", bar: "bg-orange-500", label: "Low Confidence" },
+};
 
 async function count(table: string, modify?: (q: any) => any): Promise<number> {
   const supabase = createSupabaseServerClient();
@@ -74,122 +86,164 @@ export default async function DashboardPage() {
       <PageHeader
         title="Dashboard"
         description={`Welcome${profile?.full_name ? `, ${profile.full_name}` : ""}.`}
+        tag={
+          admin ? (
+            <span className="rounded bg-panel px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-slate-500">
+              Metrics source: {source === "rpc" ? "DB RPC" : "JS fallback"}
+            </span>
+          ) : undefined
+        }
         actions={
-          <Link
-            href="/detection"
-            className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
-          >
+          <Link href="/detection" className={btnPrimary}>
+            <Icon name="detection" size={16} />
             Start detection
           </Link>
         }
       />
 
-      <div className="space-y-6 p-8">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <DashboardMetricCard label="Traffic signs" value={totalSigns} hint="Optimized inventory" />
-          <DashboardMetricCard label="Detections today" value={todayDetections} />
-          <DashboardMetricCard label="Active devices" value={activeDevices} />
-          <DashboardMetricCard label="Active sessions" value={activeSessions} />
-          <DashboardMetricCard label="Last 24 hours" value={last24h} hint="Detection events" />
-          <DashboardMetricCard label="Last 7 days" value={last7d} hint="Detection events" />
-          <DashboardMetricCard
+      <div className="space-y-6 p-4 md:p-6">
+        {/* KPI strip */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-8">
+          <KpiTile label="Traffic signs" value={totalSigns} hint="Optimized inventory" icon="signmap" />
+          <KpiTile label="Detections today" value={todayDetections} icon="detection" />
+          <KpiTile label="Active devices" value={activeDevices} hint="Reporting recently" live />
+          <KpiTile label="Active sessions" value={activeSessions} hint="Running now" live />
+          <KpiTile label="Last 24 hours" value={last24h} hint="Detection events" icon="clock" />
+          <KpiTile label="Last 7 days" value={last7d} hint="Detection events" icon="calendar" />
+          <KpiTile
             label="Avg confidence"
             value={avgConfidence != null ? `${(avgConfidence * 100).toFixed(0)}%` : "—"}
             hint={source === "rpc" ? "All events" : "Recent 500 events"}
+            icon="ai"
           />
-          <DashboardMetricCard
+          <KpiTile
             label="Avg AI time"
             value={avgAiMs != null ? `${avgAiMs.toFixed(0)} ms` : "—"}
             hint={source === "rpc" ? "All events" : "Recent 500 events"}
+            icon="bolt"
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Two-column region */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           {/* Verification breakdown */}
-          <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-            <div className="border-b border-slate-200 px-5 py-3">
-              <h2 className="text-sm font-semibold text-slate-900">Verification breakdown</h2>
-            </div>
-            <div className="space-y-2 p-5">
-              {breakdown.map((b) => (
-                <div key={b.status} className="flex items-center gap-3 text-sm">
-                  <span className="w-36 shrink-0 text-slate-600">{b.status}</span>
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full rounded-full bg-brand"
-                      style={{ width: `${(b.value / breakdownMax) * 100}%` }}
-                    />
-                  </div>
-                  <span className="w-10 text-right text-slate-700">{b.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Top sign types */}
-          <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-            <div className="border-b border-slate-200 px-5 py-3">
-              <h2 className="text-sm font-semibold text-slate-900">Top detected sign types</h2>
-            </div>
-            <div className="space-y-2 p-5">
-              {topTypes.length === 0 && (
-                <p className="text-sm text-slate-400">No traffic signs yet.</p>
-              )}
-              {topTypes.map((t) => {
-                const label = getTrafficSignDisplayName(null, t.sign_type);
+          <div className="flex flex-col rounded-md border border-line bg-white p-5 lg:col-span-4">
+            <h2 className="mb-4 text-[15px] font-semibold text-slate-900">Verification Breakdown</h2>
+            <div className="flex-1 space-y-3.5">
+              {breakdown.map((b) => {
+                const s = STATUS_BAR[b.status]!;
                 return (
-                <div key={t.sign_type} className="flex items-center gap-3 text-sm">
-                  <span className="w-36 shrink-0 truncate text-slate-600" title={label}>
-                    {label}
-                  </span>
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full rounded-full bg-green-500"
-                      style={{ width: `${(t.total / topMax) * 100}%` }}
-                    />
+                  <div key={b.status} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-sm font-medium">
+                      <span className="flex items-center gap-2">
+                        <span className={`h-2 w-2 rounded-full ${s.dot}`} />
+                        {s.label}
+                      </span>
+                      <span className="font-mono tabular text-slate-600">{b.value}</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-panel">
+                      <div className={`h-full ${s.bar}`} style={{ width: `${(b.value / breakdownMax) * 100}%` }} />
+                    </div>
                   </div>
-                  <span className="w-10 text-right text-slate-700">{t.total}</span>
-                </div>
                 );
               })}
             </div>
           </div>
-        </div>
 
-        <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-          <div className="border-b border-slate-200 px-5 py-3">
-            <h2 className="text-sm font-semibold text-slate-900">Recent detections</h2>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {(recent ?? []).length === 0 && (
-              <p className="px-5 py-6 text-sm text-slate-400">
-                No detections yet. Start a detection session to populate data.
-              </p>
-            )}
-            {(recent ?? []).map((r) => (
-              <div key={r.id} className="flex items-center justify-between px-5 py-3 text-sm">
-                <span className="font-medium text-slate-800">
-                  {r.detected_class_name || r.detected_class_id != null
-                    ? getTrafficSignDisplayName(r.detected_class_id, r.detected_class_name)
-                    : "—"}
-                </span>
-                <span className="text-slate-500">
-                  {r.confidence != null ? `${(r.confidence * 100).toFixed(0)}%` : "—"}
-                </span>
-                <span className="text-xs text-slate-400">
-                  {new Date(r.created_at).toLocaleString()}
-                </span>
+          {/* Top sign types + inventory map link */}
+          <div className="grid grid-cols-1 gap-6 lg:col-span-8 md:grid-cols-3">
+            <div className="flex flex-col rounded-md border border-line bg-white p-5 md:col-span-2">
+              <h2 className="mb-4 text-[15px] font-semibold text-slate-900">Top Detected Sign Types</h2>
+              <div className="flex-1 space-y-3.5">
+                {topTypes.length === 0 && <p className="text-sm text-slate-400">No traffic signs yet.</p>}
+                {topTypes.map((t) => {
+                  const label = getTrafficSignDisplayName(null, t.sign_type);
+                  return (
+                    <div key={t.sign_type} className="flex items-center gap-4">
+                      <div className="w-28 truncate text-sm font-medium text-slate-700" title={label}>
+                        {label}
+                      </div>
+                      <div className="h-4 flex-1 overflow-hidden rounded-sm bg-panel">
+                        <div className="h-full bg-green-600" style={{ width: `${(t.total / topMax) * 100}%` }} />
+                      </div>
+                      <div className="w-8 text-right font-mono tabular text-sm text-slate-600">{t.total}</div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
+            </div>
+
+            {/* Inventory map link card (real link — no static map screenshot) */}
+            <Link
+              href="/map/signs"
+              className="group flex flex-col justify-between rounded-md border border-line bg-white p-4 transition-colors hover:border-primary"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-slate-900">Inventory Map</span>
+                <Icon name="arrowRight" size={16} className="text-slate-400 transition-transform group-hover:translate-x-1" />
+              </div>
+              <div className="my-3 flex flex-1 items-center justify-center rounded-md border border-line bg-navy/95 text-white/80">
+                <div className="flex flex-col items-center gap-1 py-6">
+                  <Icon name="signmap" size={26} className="text-primary" />
+                  <span className="font-mono text-lg font-semibold tabular">{totalSigns}</span>
+                  <span className="text-[10px] uppercase tracking-wide text-white/50">Signs mapped</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[10px] uppercase text-slate-400">Aalborg Region</span>
+                <span className="font-mono text-[10px] text-slate-400">57.04° N, 9.89° E</span>
+              </div>
+            </Link>
           </div>
         </div>
 
-        {admin && (
-          <p className="text-xs text-slate-400">
-            You are signed in as an admin — admin pages are available in the sidebar. Summary
-            metrics source: <span className="font-medium">{source === "rpc" ? "DB RPC" : "JS fallback"}</span>.
-          </p>
-        )}
+        {/* Recent detections */}
+        <div className="overflow-hidden rounded-md border border-line bg-white">
+          <div className="border-b border-line bg-panel/40 px-5 py-3">
+            <h2 className="text-[15px] font-semibold text-slate-900">Recent Detections</h2>
+          </div>
+          {(recent ?? []).length === 0 ? (
+            <p className="px-5 py-8 text-sm text-slate-400">
+              No detections yet. Start a detection session to populate data.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-left">
+                <thead className="bg-panel/50">
+                  <tr>
+                    <th className="px-5 py-3 font-mono text-[11px] uppercase tracking-wider text-slate-500">Class</th>
+                    <th className="px-5 py-3 font-mono text-[11px] uppercase tracking-wider text-slate-500">Confidence</th>
+                    <th className="px-5 py-3 font-mono text-[11px] uppercase tracking-wider text-slate-500">Time</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line/60">
+                  {(recent ?? []).map((r) => (
+                    <tr key={r.id} className="hover:bg-panel/40">
+                      <td className="px-5 py-3">
+                        <span className="flex items-center gap-3">
+                          <span className="flex h-8 w-8 items-center justify-center rounded border border-line bg-panel text-primary">
+                            <Icon name="sign" size={16} />
+                          </span>
+                          <span className="font-medium text-slate-800">
+                            {r.detected_class_name || r.detected_class_id != null
+                              ? getTrafficSignDisplayName(r.detected_class_id, r.detected_class_name)
+                              : "—"}
+                          </span>
+                        </span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <ConfidenceMeter value={r.confidence} />
+                      </td>
+                      <td className="px-5 py-3 font-mono tabular text-sm text-slate-500">
+                        {new Date(r.created_at).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </>
   );

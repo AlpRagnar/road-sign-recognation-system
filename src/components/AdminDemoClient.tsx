@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePresentationMode } from "@/components/PresentationBadge";
+import { KpiTile, ErrorBanner, btnPrimary, btnSecondary } from "@/components/ui/primitives";
+import { ConfirmModal, DangerZone } from "@/components/ui/ConfirmModal";
+import { Icon } from "@/components/ui/Icon";
 
 interface Counts {
   devices: number;
@@ -49,7 +52,7 @@ const CHECKLIST = [
   "Show Dashboard KPIs, then the Sign Map (cluster/density modes).",
   "Open a detection detail to show metadata + bounding-box overlay.",
   "Show Admin AI health/self-test and Analytics trends.",
-  "Show Storage governance (quarantine) — explain nothing auto-deletes.",
+  "Show Storage governance — explain nothing auto-deletes.",
   "Clear demo data afterwards if needed.",
 ];
 
@@ -60,6 +63,7 @@ export function AdminDemoClient() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,7 +103,6 @@ export function AdminDemoClient() {
   }
 
   async function clear() {
-    if (!confirm("Clear ALL demo-marked data? Real user data is not affected.")) return;
     setBusy("clear");
     setError(null);
     setNotice(null);
@@ -112,20 +115,28 @@ export function AdminDemoClient() {
       setError((err as Error).message);
     } finally {
       setBusy(null);
+      setConfirmClear(false);
     }
   }
 
   return (
     <div className="space-y-6">
-      {error && <p className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
-      {notice && <p className="rounded-md bg-green-50 px-4 py-2 text-sm text-green-700">{notice}</p>}
+      {error && <ErrorBanner message={error} />}
+      {notice && (
+        <p className="rounded-md border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
+          {notice}
+        </p>
+      )}
 
-      {/* Status + actions */}
-      <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3">
+      {/* Demo data control card */}
+      <div className="rounded-md border border-line bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
           <div>
-            <h2 className="text-sm font-semibold text-slate-900">Demo data</h2>
-            <p className="text-xs text-slate-500">
+            <h2 className="text-[15px] font-semibold text-slate-900">Demo data</h2>
+            <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+              {!loading && status?.hasDemoData && (
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+              )}
               {loading
                 ? "Loading…"
                 : status?.hasDemoData
@@ -133,63 +144,58 @@ export function AdminDemoClient() {
                   : "No demo data present"}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={seed}
-              disabled={busy != null}
-              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50"
-            >
-              {busy === "seed" ? "Seeding…" : status?.hasDemoData ? "Refresh demo data" : "Seed demo data"}
-            </button>
-            {presentation ? (
-              <span
-                title="Disabled in presentation mode"
-                className="cursor-not-allowed rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-300"
-              >
-                Clear demo data
-              </span>
-            ) : (
-              <button
-                onClick={clear}
-                disabled={busy != null}
-                className="rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-              >
-                {busy === "clear" ? "Clearing…" : "Clear demo data"}
-              </button>
-            )}
-          </div>
+          <button onClick={seed} disabled={busy != null} className={btnPrimary}>
+            <Icon name="demo" size={16} />
+            {busy === "seed" ? "Seeding…" : status?.hasDemoData ? "Refresh demo data" : "Seed demo data"}
+          </button>
         </div>
 
         <div className="grid grid-cols-2 gap-3 p-5 sm:grid-cols-4">
           {COUNT_LABELS.map(([key, label]) => (
-            <div key={key} className="rounded-lg bg-slate-50 p-3">
-              <p className="text-xs text-slate-500">{label}</p>
-              <p className="mt-1 text-xl font-semibold text-slate-900">
-                {status?.counts[key] ?? 0}
-              </p>
-            </div>
+            <KpiTile key={key} label={label} value={status?.counts[key] ?? 0} />
           ))}
+        </div>
+
+        {/* Separated danger zone */}
+        <div className="border-t border-line p-5">
+          <DangerZone title="Danger zone">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-red-700/90">
+                Permanently clear all demo-marked data. Real user data is not affected.
+              </p>
+              {presentation ? (
+                <span
+                  title="Disabled in presentation mode"
+                  className="cursor-not-allowed rounded-md border border-red-200 px-4 py-2 text-sm text-red-300"
+                >
+                  Clear demo data
+                </span>
+              ) : (
+                <button
+                  onClick={() => setConfirmClear(true)}
+                  disabled={busy != null}
+                  className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  {busy === "clear" ? "Clearing…" : "Clear demo data"}
+                </button>
+              )}
+            </div>
+          </DangerZone>
         </div>
       </div>
 
-      {/* Quick links */}
-      <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-        <div className="border-b border-slate-200 px-5 py-3">
-          <h2 className="text-sm font-semibold text-slate-900">Key pages</h2>
+      {/* Key pages */}
+      <div className="rounded-md border border-line bg-white">
+        <div className="border-b border-line px-5 py-3">
+          <h2 className="text-[15px] font-semibold text-slate-900">Key pages</h2>
         </div>
         <div className="flex flex-wrap gap-2 p-5">
-          <Link
-            href="/presentation?presentation=1"
-            className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-dark"
-          >
-            Open presentation mode →
+          <Link href="/presentation?presentation=1" className={btnPrimary}>
+            <Icon name="presentation" size={16} />
+            Open presentation mode
           </Link>
           {QUICK_LINKS.map(([href, label]) => (
-            <Link
-              key={href}
-              href={href}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-            >
+            <Link key={href} href={href} className={btnSecondary}>
               {label}
             </Link>
           ))}
@@ -197,16 +203,29 @@ export function AdminDemoClient() {
       </div>
 
       {/* Checklist */}
-      <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-        <div className="border-b border-slate-200 px-5 py-3">
-          <h2 className="text-sm font-semibold text-slate-900">Presentation checklist</h2>
+      <div className="rounded-md border border-line bg-white">
+        <div className="border-b border-line px-5 py-3">
+          <h2 className="text-[15px] font-semibold text-slate-900">Presentation checklist</h2>
         </div>
-        <ol className="list-decimal space-y-1 py-4 pl-9 pr-5 text-sm text-slate-600">
+        <ol className="list-decimal space-y-1.5 py-4 pl-9 pr-5 text-sm text-slate-600">
           {CHECKLIST.map((c) => (
             <li key={c}>{c}</li>
           ))}
         </ol>
       </div>
+
+      <ConfirmModal
+        open={confirmClear}
+        title="Clear demo data?"
+        confirmLabel="Clear demo data"
+        destructive
+        busy={busy === "clear"}
+        onConfirm={clear}
+        onCancel={() => setConfirmClear(false)}
+      >
+        This permanently deletes all demo-marked devices, sessions, detections, signs, observations,
+        logs, and snapshots. Real user data is not affected.
+      </ConfirmModal>
     </div>
   );
 }

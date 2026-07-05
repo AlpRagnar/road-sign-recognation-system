@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ErrorBanner, btnPrimary } from "@/components/ui/primitives";
+import { Icon } from "@/components/ui/Icon";
 
 interface AiHealthResult {
   mode: string;
@@ -14,14 +17,6 @@ interface AiHealthResult {
   checkedAt: string;
 }
 
-const STATUS_STYLE: Record<string, string> = {
-  "mock-ready": "bg-blue-100 text-blue-700",
-  healthy: "bg-green-100 text-green-700",
-  reachable: "bg-green-100 text-green-700",
-  unreachable: "bg-red-100 text-red-700",
-  misconfigured: "bg-amber-100 text-amber-700",
-};
-
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-4 py-1.5 text-sm">
@@ -31,7 +26,13 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-export function AdminAiHealthClient() {
+export function AdminAiHealthClient({
+  onHealth,
+  autoRun = false,
+}: {
+  onHealth?: (status: string) => void;
+  autoRun?: boolean;
+}) {
   const [result, setResult] = useState<AiHealthResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +44,7 @@ export function AdminAiHealthClient() {
       const json = await fetch("/api/admin/ai/health").then((r) => r.json());
       if (!json.ok) throw new Error(json.error || "Health check failed");
       setResult(json.data.health);
+      onHealth?.(json.data.health.status);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -50,51 +52,44 @@ export function AdminAiHealthClient() {
     }
   }
 
+  useEffect(() => {
+    if (autoRun) void run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRun]);
+
   return (
     <div className="max-w-xl space-y-4">
-      {error && <p className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
+      {error && <ErrorBanner message={error} />}
 
-      <button
-        onClick={run}
-        disabled={loading}
-        className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
-      >
+      <button onClick={run} disabled={loading} className={btnPrimary}>
+        <Icon name="refresh" size={16} />
         {loading ? "Checking…" : "Run health check"}
       </button>
 
       {result && (
-        <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
-            <h2 className="text-sm font-semibold text-slate-900">AI integration status</h2>
-            <span
-              className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                STATUS_STYLE[result.status] ?? "bg-slate-100 text-slate-600"
-              }`}
-            >
-              {result.status}
-            </span>
+        <div className="rounded-md border border-line bg-white">
+          <div className="flex items-center justify-between border-b border-line px-5 py-3">
+            <h2 className="text-[15px] font-semibold text-slate-900">Integration configuration</h2>
+            <StatusBadge status={result.status} />
           </div>
           <div className="px-5 py-3">
-            <dl className="divide-y divide-slate-100">
-              <Row label="Mode" value={result.mode} />
+            <dl className="divide-y divide-line/70">
+              <Row label="Mode" value={<span className="font-mono">{result.mode}</span>} />
               <Row label="External configured" value={result.externalConfigured ? "yes" : "no"} />
-              <Row label="Model host" value={result.hostname ?? "—"} />
-              <Row label="Timeout" value={`${result.timeoutMs} ms`} />
-              <Row label="Max retries" value={result.maxRetries} />
-              <Row label="Retry backoff" value={`${result.retryBackoffMs} ms`} />
-              <Row label="Checked at" value={new Date(result.checkedAt).toLocaleString()} />
+              <Row label="Model host" value={<span className="font-mono">{result.hostname ?? "—"}</span>} />
+              <Row label="Timeout" value={<span className="font-mono tabular">{result.timeoutMs} ms</span>} />
+              <Row label="Max retries" value={<span className="font-mono tabular">{result.maxRetries}</span>} />
+              <Row label="Retry backoff" value={<span className="font-mono tabular">{result.retryBackoffMs} ms</span>} />
+              <Row label="Checked at" value={<span className="font-mono tabular">{new Date(result.checkedAt).toLocaleString()}</span>} />
             </dl>
-            <p className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
-              {result.detail}
-            </p>
+            <p className="mt-3 rounded-md bg-panel px-3 py-2 text-xs text-slate-600">{result.detail}</p>
           </div>
         </div>
       )}
 
       {!result && !loading && (
         <p className="text-sm text-slate-400">
-          Run the check to probe the configured model server. In mock mode no external
-          call is made.
+          Run the check to probe the configured model server. In mock mode no external call is made.
         </p>
       )}
     </div>

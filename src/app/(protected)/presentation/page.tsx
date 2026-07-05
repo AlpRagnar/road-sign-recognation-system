@@ -1,31 +1,34 @@
 import Link from "next/link";
 import { getCurrentProfile, isAdmin } from "@/lib/auth";
 import { PageHeader } from "@/components/PageHeader";
+import { Icon, type IconName } from "@/components/ui/Icon";
+import { btnSecondary } from "@/components/ui/primitives";
 
 export const dynamic = "force-dynamic";
 
-interface Card {
+interface Step {
   step: number;
   title: string;
   href: string;
   blurb: string;
+  icon: IconName;
   adminOnly?: boolean;
 }
 
-const CARDS: Card[] = [
-  { step: 1, title: "System Overview", href: "/dashboard", blurb: "KPI cards, verification breakdown, top sign types, and recent detections." },
-  { step: 2, title: "Start Detection", href: "/detection", blurb: "Select a device, capture camera frames + GPS, and run AI detection (mock or external)." },
-  { step: 3, title: "Traffic Sign Map", href: "/map/signs", blurb: "Optimized sign inventory with marker / cluster / density modes and a detail panel." },
-  { step: 4, title: "Live Device Map", href: "/map/devices", blurb: "Last-known device locations updated by polling." },
-  { step: 5, title: "AI Integration Health", href: "/admin/ai", blurb: "Health check, model-contract self-test, and AI failure analytics.", adminOnly: true },
-  { step: 6, title: "Analytics", href: "/admin/analytics", blurb: "Daily metric snapshots, trend bars, and snapshot-coverage warnings.", adminOnly: true },
-  { step: 7, title: "Storage Governance", href: "/admin/storage", blurb: "Quarantine-first cleanup and reconciliation run history — nothing auto-deletes.", adminOnly: true },
+const STEPS: Step[] = [
+  { step: 1, title: "Dashboard", href: "/dashboard", icon: "dashboard", blurb: "KPI cards, verification breakdown, top sign types, and recent detections." },
+  { step: 2, title: "Detection Session", href: "/detection", icon: "detection", blurb: "Select a device, capture camera frames + GPS, and run AI detection." },
+  { step: 3, title: "Sign Map", href: "/map/signs", icon: "signmap", blurb: "Optimized sign inventory with marker / cluster / density modes and a detail panel." },
+  { step: 4, title: "Detection Review", href: "/admin/detections", icon: "review", blurb: "Review raw AI detection events: verify, reject, mark duplicate, or reset.", adminOnly: true },
+  { step: 5, title: "AI Integration", href: "/admin/ai", icon: "ai", blurb: "Health check, model-contract self-test, and AI activity analytics.", adminOnly: true },
+  { step: 6, title: "Analytics", href: "/admin/analytics", icon: "analytics", blurb: "Daily metric snapshots, trend charts, and snapshot-coverage warnings.", adminOnly: true },
+  { step: 7, title: "Admin Storage", href: "/admin/storage", icon: "storage", blurb: "Image-path backfill status, reference/orphan scan, and safe cleanup.", adminOnly: true },
 ];
 
 export default async function PresentationPage() {
   const profile = await getCurrentProfile();
   const admin = isAdmin(profile);
-  const cards = CARDS.filter((c) => !c.adminOnly || admin);
+  const steps = STEPS.filter((c) => !c.adminOnly || admin);
 
   return (
     <>
@@ -34,34 +37,51 @@ export default async function PresentationPage() {
         description="Guided demo flow. Open each step in order; presentation mode is on."
         actions={
           admin ? (
-            <Link
-              href="/admin/demo"
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-            >
-              Demo tools
+            <Link href="/admin/demo" className={btnSecondary}>
+              <Icon name="demo" size={16} />
+              Demo Tools
             </Link>
           ) : undefined
         }
       />
-      <div className="grid grid-cols-1 gap-4 p-8 sm:grid-cols-2 lg:grid-cols-3">
-        {cards.map((c) => (
-          <Link
-            key={c.step}
-            href={`${c.href}?presentation=1`}
-            className="group rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200 transition hover:ring-brand"
-          >
-            <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand text-xs font-semibold text-white">
-                {c.step}
-              </span>
-              <h2 className="text-sm font-semibold text-slate-900 group-hover:text-brand">
-                {c.title}
-              </h2>
-            </div>
-            <p className="mt-2 text-sm text-slate-500">{c.blurb}</p>
-            <p className="mt-3 text-xs font-medium text-brand">Open →</p>
-          </Link>
-        ))}
+
+      <div className="p-4 md:p-6">
+        <div className="relative mx-auto max-w-3xl">
+          {/* Connecting rail */}
+          <div className="absolute left-[27px] top-6 bottom-6 hidden w-px bg-line sm:block" aria-hidden="true" />
+          <ol className="space-y-4">
+            {steps.map((s) => (
+              <li key={s.step} className="relative">
+                <Link
+                  href={`${s.href}?presentation=1`}
+                  className="group flex items-start gap-4 rounded-md border border-line bg-white p-4 transition-colors hover:border-primary"
+                >
+                  <span className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white ring-4 ring-canvas">
+                    {s.step}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <Icon name={s.icon} size={18} className="text-primary" />
+                      <h2 className="text-sm font-semibold text-slate-900 group-hover:text-primary">
+                        {s.title}
+                      </h2>
+                      {s.adminOnly && (
+                        <span className="rounded bg-panel px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                          Admin
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-sm text-slate-500">{s.blurb}</p>
+                  </div>
+                  <span className="flex items-center gap-1 self-center text-xs font-medium text-primary">
+                    Open
+                    <Icon name="arrowRight" size={14} className="transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </div>
       </div>
     </>
   );

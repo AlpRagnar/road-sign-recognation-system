@@ -13,6 +13,9 @@ next-env.d.ts
 
 /public/final-screenshots
 
+# Stitch design export (local reference only; ~22MB, not imported by the app)
+/design/
+
 # misc
 .DS_Store
 *.pem

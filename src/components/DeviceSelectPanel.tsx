@@ -20,7 +20,7 @@ export function DeviceSelectPanel({
   onSelect,
 }: Props) {
   return (
-    <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+    <div className="rounded-md border border-line bg-white p-5">
       <h3 className="text-sm font-semibold text-slate-900">Device</h3>
 
       {loading ? (

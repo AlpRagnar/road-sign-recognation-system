@@ -10,8 +10,8 @@ const LiveDevicesMap = dynamic(
 export default function DeviceMapPage() {
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] flex-col md:h-screen">
-      <div className="border-b border-slate-200 bg-white px-8 py-5">
-        <h1 className="text-lg font-semibold text-slate-900">Live Device Map</h1>
+      <div className="border-b border-line bg-white px-4 py-3 md:px-6">
+        <h1 className="text-lg font-semibold text-primary md:text-xl">Live Device Map</h1>
         <p className="mt-0.5 text-sm text-slate-500">
           Last-known device locations, refreshed by polling.
         </p>
